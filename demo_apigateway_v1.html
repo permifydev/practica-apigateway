@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DEMO — Apigateway v1· Prototipo navegable</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root {
+  --nar: #FFFFFF;
+  --neg: #0A0A0A;
+  --bg: #F2F2F0;
+  --surface: #FFFFFF;
+  --border: #E5E4E0;
+  --muted: #888784;
+  --ok: #16A34A;
+  --ok-bg: #DCFCE7;
+  --warn: #B45309;
+  --warn-bg: #FEF3C7;
+  --danger: #DC2626;
+  --danger-bg: #FEE2E2;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 220px;
+  background: var(--neg);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.sidebar-logo {
+  padding: 20px 16px 14px;
+  border-bottom: 1px solid #1a1a1a;
+}
+.logo-text { font-size: 22px; font-weight: 600; color: var(--nar); letter-spacing: -0.5px; }
+.logo-sub { font-size: 10px; color: #3a3a3a; margin-top: 2px; }
+.nav-group { font-size: 9px; color: #2e2e2e; letter-spacing: 1.5px; padding: 12px 12px 3px; font-weight: 600; text-transform: uppercase; }
+.nav-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; margin: 1px 6px; border-radius: 7px;
+  cursor: pointer; font-size: 12px; color: #555;
+  transition: all .12s; user-select: none; position: relative;
+}
+.nav-item:hover { background: #141414; color: #aaa; }
+.nav-item.active { background: #1C1C1C; color: #fff; }
+.nav-item.active .nav-dot { background: var(--nar); }
+.nav-dot { width: 5px; height: 5px; border-radius: 50%; background: #2a2a2a; flex-shrink: 0; }
+.nav-item i { font-size: 14px; width: 16px; flex-shrink: 0; }
+.nav-badge {
+  font-size: 8px; background: var(--nar); color: var(--neg);
+  padding: 1px 5px; border-radius: 4px; font-weight: 600;
+  margin-left: auto;
+}
+
+/* ── PHONE FRAME ── */
+.phone-wrap {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.phone {
+  width: 375px; height: 812px;
+  background: var(--bg);
+  border-radius: 44px;
+  border: 3px solid var(--neg);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  box-shadow: 0 32px 80px rgba(0,0,0,.18);
+  position: relative;
+}
+.status-bar {
+  background: var(--neg);
+  padding: 10px 20px 6px;
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; color: var(--nar); font-weight: 500;
+  flex-shrink: 0;
+}
+.phone-screen {
+  flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+  background: var(--bg);
+}
+.tab-bar {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex; padding: 8px 0 16px;
+  flex-shrink: 0;
+}
+.tab-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  gap: 3px; cursor: pointer; padding: 2px 0;
+}
+.tab-btn i { font-size: 22px; color: #bbb; }
+.tab-btn span { font-size: 9px; color: #bbb; }
+.tab-btn.active i, .tab-btn.active span { color: var(--neg); }
+.tab-btn.active-nar i, .tab-btn.active-nar span { color: var(--nar); }
+
+/* ── SCREEN COMPONENTS ── */
+.s-header {
+  background: var(--neg); padding: 14px 18px 12px; flex-shrink: 0;
+}
+.s-title { font-size: 16px; font-weight: 600; color: var(--nar); }
+.s-sub { font-size: 11px; color: #555; margin-top: 2px; }
+.s-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px 16px; margin-bottom: 10px;
+}
+.card-title { font-size: 13px; font-weight: 600; color: var(--neg); margin-bottom: 4px; }
+.card-sub { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+.kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+.kpi-label { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+.kpi-value { font-size: 20px; font-weight: 600; color: var(--neg); }
+.kpi-delta { font-size: 10px; color: var(--nar); margin-top: 2px; }
+
+.doc-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.doc-row:last-child { border-bottom: none; }
+.doc-name { font-size: 12px; font-weight: 600; color: var(--neg); }
+.doc-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+.badge {
+  font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 8px;
+}
+.b-ok { background: var(--ok-bg); color: var(--ok); }
+.b-warn { background: var(--warn-bg); color: var(--warn); }
+.b-danger { background: var(--danger-bg); color: var(--danger); }
+.b-nar { background: #FEF3C7; color: #B45309; }
+.b-dark { background: var(--neg); color: var(--nar); font-size: 9px; }
+
+.btn-primary {
+  background: var(--neg); color: #fff; border: none;
+  border-radius: 10px; padding: 12px 0; width: 100%;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  margin-bottom: 8px; font-family: inherit;
+}
+.btn-secondary {
+  background: transparent; color: var(--neg);
+  border: 1.5px solid var(--neg); border-radius: 10px;
+  padding: 11px 0; width: 100%;
+  font-size: 12px; cursor: pointer; margin-bottom: 8px; font-family: inherit;
+}
+.btn-nar {
+  background: var(--nar); color: var(--neg); border: none;
+  border-radius: 10px; padding: 12px 0; width: 100%;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  margin-bottom: 8px; font-family: inherit;
+}
+
+.input-field {
+  background: var(--bg); border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 10px 13px;
+  font-size: 13px; color: var(--neg); margin-bottom: 8px;
+  width: 100%; font-family: inherit;
+}
+.input-field:focus { outline: none; border-color: var(--neg); }
+.input-field.focused { border-color: var(--neg); }
+
+.section-label {
+  font-size: 10px; color: var(--muted); font-weight: 600;
+  text-transform: uppercase; letter-spacing: .8px;
+  margin: 10px 0 6px;
+}
+
+.pill-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.pill {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 20px; padding: 5px 12px;
+  font-size: 11px; color: var(--muted); cursor: pointer;
+}
+.pill.active { background: var(--neg); color: #fff; border-color: var(--neg); }
+
+.seg-row { display: flex; gap: 6px; margin-bottom: 10px; }
+.seg {
+  flex: 1; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 10px; padding: 8px 6px; text-align: center;
+  font-size: 11px; color: var(--muted); cursor: pointer;
+}
+.seg.active { background: var(--neg); color: #fff; border-color: var(--neg); }
+
+.uf-pill {
+  background: var(--neg); color: var(--nar);
+  font-size: 10px; font-weight: 600; padding: 3px 10px;
+  border-radius: 12px; display: inline-block; margin-bottom: 10px;
+}
+
+.progress-bar { height: 7px; background: var(--bg); border-radius: 4px; overflow: hidden; margin: 5px 0 3px; }
+.progress-fill { height: 100%; background: var(--neg); border-radius: 4px; }
+
+.check-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.check-box {
+  width: 18px; height: 18px; border-radius: 4px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; margin-top: 1px;
+}
+.check-box.checked { background: var(--neg); }
+.check-box.checked::after { content: '✓'; color: var(--nar); font-size: 11px; font-weight: 700; }
+.check-box.unchecked { border: 2px solid var(--border); }
+
+.plan-card {
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: 14px; padding: 12px 14px; margin-bottom: 8px;
+  cursor: pointer; transition: border-color .1s;
+}
+.plan-card.popular { border-color: var(--nar); }
+.plan-card.selected { border-color: var(--neg); border-width: 2px; }
+.plan-name { font-size: 14px; font-weight: 600; color: var(--neg); }
+.plan-price { font-size: 20px; font-weight: 600; color: var(--neg); margin: 2px 0; }
+.plan-feat { font-size: 10px; color: var(--muted); margin-top: 6px; line-height: 1.7; }
+.feat-line { display: flex; gap: 5px; align-items: center; }
+.feat-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--neg); flex-shrink: 0; }
+.feat-dot-off { width: 5px; height: 5px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+
+.method-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.method-btn {
+  flex: 1; background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 10px 8px; text-align: center;
+  font-size: 11px; color: var(--muted); cursor: pointer;
+}
+.method-btn.active { border-color: var(--neg); color: var(--neg); }
+.method-btn i { display: block; font-size: 22px; margin-bottom: 3px; }
+
+.bank-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.bank-chip {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px 10px; font-size: 10px;
+  color: var(--muted); cursor: pointer;
+}
+.bank-chip.active { background: var(--neg); color: var(--nar); border-color: var(--neg); }
+
+.flow-step {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 10px 12px; margin-bottom: 4px;
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.step-num {
+  width: 22px; height: 22px; background: var(--neg); color: var(--nar);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+}
+.step-title { font-size: 12px; font-weight: 600; color: var(--neg); margin-bottom: 2px; }
+.step-desc { font-size: 10px; color: var(--muted); line-height: 1.5; }
+
+.safe-note {
+  display: flex; align-items: flex-start; gap: 6px;
+  font-size: 10px; color: var(--muted); margin-top: 8px; line-height: 1.5;
+}
+
+.wh-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 8px; }
+.wh-card { background: var(--bg); border-radius: 8px; padding: 8px; }
+.wh-event { font-size: 9px; font-weight: 600; color: var(--neg); margin-bottom: 2px; }
+.wh-desc { font-size: 9px; color: var(--muted); line-height: 1.4; }
+
+.mini-row {
+  display: flex; justify-content: space-between;
+  font-size: 11px; color: var(--muted);
+  padding: 5px 0; border-bottom: 1px solid var(--border);
+}
+.mini-row:last-child { border-bottom: none; }
+.mini-val { color: var(--neg); font-weight: 600; }
+
+.bar-chart { display: flex; align-items: flex-end; gap: 5px; height: 70px; margin-bottom: 5px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.bar-seg { width: 100%; border-radius: 3px 3px 0 0; }
+.bar-label { font-size: 8px; color: var(--muted); }
+
+.top-client { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.top-client:last-child { border-bottom: none; }
+.tc-name { font-size: 11px; font-weight: 600; color: var(--neg); flex: 1; }
+.tc-bar { height: 4px; background: var(--neg); border-radius: 2px; }
+.tc-val { font-size: 10px; color: var(--muted); min-width: 60px; text-align: right; }
+
+.otp-row { display: flex; gap: 8px; justify-content: center; margin: 16px 0; }
+.otp-box {
+  width: 50px; height: 58px; background: var(--bg);
+  border: 2px solid var(--border); border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 700; color: var(--neg);
+}
+.otp-box.filled { border-color: var(--neg); }
+
+.voice-btn {
+  width: 64px; height: 64px; background: var(--neg);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 10px; cursor: pointer;
+}
+.voice-btn i { font-size: 28px; color: var(--nar); }
+
+.avatar {
+  width: 56px; height: 56px; background: var(--neg);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700; color: var(--nar); margin: 0 auto 10px;
+}
+
+.list-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.list-row:last-child { border-bottom: none; }
+.list-title { font-size: 13px; font-weight: 600; color: var(--neg); }
+.list-sub { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+.subs-state { display: inline-block; font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 8px; margin-bottom: 8px; }
+.subs-ok { background: var(--ok-bg); color: var(--ok); }
+
+.tgl-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.tgl-label { font-size: 12px; color: var(--neg); }
+.tgl { width: 36px; height: 20px; background: var(--neg); border-radius: 10px; position: relative; cursor: pointer; }
+.tgl::after { content: ''; position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; background: var(--nar); border-radius: 50%; }
+
+.onboarding-step { display: flex; gap: 6px; margin-bottom: 20px; }
+.ob-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+.ob-dot.done { background: var(--neg); }
+.ob-dot.active { background: var(--nar); }
+
+.cert-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.cert-icon { font-size: 20px; color: var(--neg); }
+
+.cuota-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.cuota-num { font-size: 13px; font-weight: 700; color: var(--nar); min-width: 20px; }
+.cuota-hito { font-size: 12px; font-weight: 600; color: var(--neg); }
+.cuota-sub { font-size: 10px; color: var(--muted); }
+.cuota-uf { font-size: 12px; font-weight: 600; color: var(--neg); text-align: right; }
+.cuota-clp { font-size: 9px; color: var(--muted); text-align: right; }
+
+.lookup-result { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.lookup-name { font-size: 12px; font-weight: 700; color: #166534; }
+.lookup-sub { font-size: 10px; color: #16A34A; margin-top: 2px; }
+
+.retenciones { background: var(--bg); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.ret-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); padding: 2px 0; }
+.ret-total { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--neg); margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--border); }
+
+.oc-origin { display: flex; gap: 6px; margin-bottom: 10px; }
+.oc-btn { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 9px 6px; text-align: center; font-size: 10px; color: var(--muted); cursor: pointer; }
+.oc-btn i { display: block; font-size: 18px; margin-bottom: 3px; }
+.oc-btn.active { background: var(--neg); color: var(--nar); border-color: var(--neg); }
+
+.paywall-wrap { text-align: center; padding: 20px 10px; }
+.paywall-icon { font-size: 48px; color: var(--nar); margin-bottom: 12px; }
+.paywall-title { font-size: 16px; font-weight: 700; color: var(--neg); margin-bottom: 6px; }
+.paywall-sub { font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 16px; }
+
+.mas-section { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 6px 14px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-text">DEMO</div>
+    <div class="logo-sub">Dev v1.0 · pantallas</div>
+  </div>
+
+  <div class="nav-group">Onboarding</div>
+  <div class="nav-item" onclick="ir('ob-email')"><i class="ti ti-mail"></i><div class="nav-dot"></div>Email y contraseña</div>
+  <div class="nav-item" onclick="ir('ob-rut')"><i class="ti ti-id-badge"></i><div class="nav-dot"></div>Nombre y RUT</div>
+  <div class="nav-item" onclick="ir('ob-otp')"><i class="ti ti-device-mobile"></i><div class="nav-dot"></div>Verificación OTP</div>
+  <div class="nav-item" onclick="ir('ob-legal')"><i class="ti ti-shield-check"></i><div class="nav-dot"></div>Términos y condiciones</div>
+
+  <div class="nav-group">Principal</div>
+  <div class="nav-item active" id="ni-inicio" onclick="ir('inicio')"><i class="ti ti-home"></i><div class="nav-dot"></div>Inicio</div>
+  <div class="nav-item" id="ni-emitir" onclick="ir('emitir')"><i class="ti ti-file-plus"></i><div class="nav-dot"></div>Emitir</div>
+  <div class="nav-item" id="ni-documentos" onclick="ir('documentos')"><i class="ti ti-files"></i><div class="nav-dot"></div>Documentos</div>
+  <div class="nav-item" id="ni-cobros" onclick="ir('cobros')"><i class="ti ti-receipt"></i><div class="nav-dot"></div>Cobros</div>
+  <div class="nav-item" id="ni-cobro-activo" onclick="ir('cobro-activo')"><i class="ti ti-send"></i><div class="nav-dot"></div>Cobro activo <span class="nav-badge">nuevo</span></div>
+  <div class="nav-item" id="ni-oc" onclick="ir('oc')"><i class="ti ti-clipboard-list"></i><div class="nav-dot"></div>Órdenes de compra</div>
+  <div class="nav-item" id="ni-estadisticas" onclick="ir('estadisticas')"><i class="ti ti-chart-bar"></i><div class="nav-dot"></div>Estadísticas <span class="nav-badge">nuevo</span></div>
+
+  <div class="nav-group">Herramientas</div>
+  <div class="nav-item" id="ni-certificados" onclick="ir('certificados')"><i class="ti ti-certificate"></i><div class="nav-dot"></div>Certificados</div>
+  <div class="nav-item" id="ni-presupuestos" onclick="ir('presupuestos')"><i class="ti ti-calculator"></i><div class="nav-dot"></div>Presupuestos UF <span class="nav-badge">nuevo</span></div>
+  <div class="nav-item" id="ni-clientes" onclick="ir('clientes')"><i class="ti ti-users"></i><div class="nav-dot"></div>Clientes / RUT <span class="nav-badge">nuevo</span></div>
+
+  <div class="nav-group">Suscripción</div>
+  <div class="nav-item" id="ni-planes" onclick="ir('planes')"><i class="ti ti-star"></i><div class="nav-dot"></div>Planes <span class="nav-badge">Fintoc</span></div>
+  <div class="nav-item" id="ni-pago" onclick="ir('pago')"><i class="ti ti-credit-card"></i><div class="nav-dot"></div>Pago PAC / tarjeta <span class="nav-badge">Fintoc</span></div>
+  <div class="nav-item" id="ni-suscripcion-activa" onclick="ir('suscripcion-activa')"><i class="ti ti-refresh"></i><div class="nav-dot"></div>Suscripción activa <span class="nav-badge">Fintoc</span></div>
+  <div class="nav-item" id="ni-upgrade" onclick="ir('upgrade')"><i class="ti ti-lock"></i><div class="nav-dot"></div>Paywall Free→Pro</div>
+
+  <div class="nav-group">Cuenta</div>
+  <div class="nav-item" id="ni-perfil" onclick="ir('perfil')"><i class="ti ti-user"></i><div class="nav-dot"></div>Perfil y plan</div>
+  <div class="nav-item" id="ni-mas" onclick="ir('mas')"><i class="ti ti-dots"></i><div class="nav-dot"></div>Más opciones</div>
+</nav>
+
+<!-- PHONE -->
+<div class="phone-wrap">
+<div class="phone">
+  <div class="status-bar">
+    <span>9:41</span>
+    <span style="font-weight:600">DEMO</span>
+    <span>●●●</span>
+  </div>
+  <div class="phone-screen" id="screen"></div>
+  <div class="tab-bar" id="tab-bar">
+    <div class="tab-btn active" id="tab-inicio" onclick="ir('inicio')">
+      <i class="ti ti-home"></i><span>Inicio</span>
+    </div>
+    <div class="tab-btn" id="tab-emitir" onclick="ir('emitir')">
+      <i class="ti ti-file-plus"></i><span>Emitir</span>
+    </div>
+    <div class="tab-btn" id="tab-cobros" onclick="ir('cobros')">
+      <i class="ti ti-receipt"></i><span>Cobros</span>
+    </div>
+    <div class="tab-btn" id="tab-oc" onclick="ir('oc')">
+      <i class="ti ti-clipboard-list"></i><span>OC</span>
+    </div>
+    <div class="tab-btn" id="tab-mas" onclick="ir('mas')">
+      <i class="ti ti-dots"></i><span>Más</span>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const SCREENS = {
+
+'ob-email': `
+<div class="s-header"><div class="s-title">Crea tu cuenta</div><div class="s-sub">Paso 1 de 4</div></div>
+<div class="s-body">
+  <div class="onboarding-step"><div class="ob-dot active"></div><div class="ob-dot"></div><div class="ob-dot"></div><div class="ob-dot"></div></div>
+  <div class="card" style="margin-bottom:16px"><div class="card-title">DEMO — el sistema operativo del independiente</div><div class="card-sub">Emite boletas en 30 segundos por voz. Lleva el control de tus cobros.</div></div>
+  <div class="section-label">Tu email</div>
+  <input class="input-field focused" placeholder="nombre@ejemplo.cl" value="maria@ejemplo.cl">
+  <div class="section-label">Contraseña</div>
+  <input class="input-field" placeholder="Mínimo 8 caracteres" type="password" value="••••••••">
+  <div class="section-label">Confirmar contraseña</div>
+  <input class="input-field" placeholder="Repite la contraseña" type="password" value="••••••••">
+  <div style="height:12px"></div>
+  <button class="btn-primary" onclick="ir('ob-rut')">Continuar →</button>
+  <div style="text-align:center;font-size:11px;color:var(--muted);margin-top:8px">¿Ya tienes cuenta? <span style="color:var(--neg);font-weight:600;cursor:pointer">Inicia sesión</span></div>
+</div>`,
+
+'ob-rut': `
+<div class="s-header"><div class="s-title">Tus datos tributarios</div><div class="s-sub">Paso 2 de 4 — aparecerán en tus boletas</div></div>
+<div class="s-body">
+  <div class="onboarding-step"><div class="ob-dot done"></div><div class="ob-dot active"></div><div class="ob-dot"></div><div class="ob-dot"></div></div>
+  <div class="section-label">Nombre completo</div>
+  <input class="input-field focused" value="María González Rojas">
+  <div class="section-label">RUT</div>
+  <input class="input-field" value="12.345.678-9">
+  <div class="lookup-result"><div class="lookup-name">✓ RUT válido</div><div class="lookup-sub">Módulo 11 verificado</div></div>
+  <div class="section-label">Giro tributario</div>
+  <input class="input-field" value="Servicios de consultoría empresarial">
+  <div style="height:8px"></div>
+  <button class="btn-primary" onclick="ir('ob-otp')">Continuar →</button>
+  <button class="btn-secondary" onclick="ir('ob-email')">← Volver</button>
+</div>`,
+
+'ob-otp': `
+<div class="s-header"><div class="s-title">Verifica tu email</div><div class="s-sub">Paso 3 de 4</div></div>
+<div class="s-body">
+  <div class="onboarding-step"><div class="ob-dot done"></div><div class="ob-dot done"></div><div class="ob-dot active"></div><div class="ob-dot"></div></div>
+  <div class="card"><div class="card-sub">Te enviamos un código de verificación a <strong>maria@ejemplo.cl</strong>. Ingresa el código de 6 dígitos:</div></div>
+  <div class="otp-row">
+    <div class="otp-box filled">4</div>
+    <div class="otp-box filled">8</div>
+    <div class="otp-box filled">2</div>
+    <div class="otp-box filled">7</div>
+    <div class="otp-box">_</div>
+    <div class="otp-box">_</div>
+  </div>
+  <button class="btn-primary" onclick="ir('ob-legal')">Verificar →</button>
+  <div style="text-align:center;font-size:11px;color:var(--muted);margin-top:8px">¿No llegó el código? <span style="color:var(--neg);font-weight:600;cursor:pointer">Reenviar</span></div>
+</div>`,
+
+'ob-legal': `
+<div class="s-header"><div class="s-title">Antes de continuar</div><div class="s-sub">Paso 4 de 4 · Lee el documento completo</div></div>
+<div class="s-body">
+  <div class="onboarding-step"><div class="ob-dot done"></div><div class="ob-dot done"></div><div class="ob-dot done"></div><div class="ob-dot active"></div></div>
+  <div class="card" style="max-height:160px;overflow-y:auto;margin-bottom:12px">
+    <div class="card-title">Términos y Condiciones · DEMO SpA</div>
+    <div class="card-sub">DEMO es una plataforma tecnológica de gestión tributaria. Actúa como intermediario entre el usuario y el SII para la emisión de documentos tributarios electrónicos...</div>
+    <div class="card-sub" style="margin-top:8px;color:var(--danger);font-weight:600">⚠ CLÁUSULA CRÍTICA: La emisión de boletas o facturas falsas es un delito tributario en Chile sancionado con multas y presidio. DEMO no tiene responsabilidad alguna por el uso fraudulento de la plataforma.</div>
+  </div>
+  <div class="check-row"><div class="check-box checked"></div><div style="font-size:12px;color:var(--neg)">He leído y acepto los Términos y Condiciones de DEMO.</div></div>
+  <div class="check-row"><div class="check-box checked"></div><div style="font-size:12px;color:var(--neg)">Acepto la Política de Privacidad y el tratamiento de mis datos personales.</div></div>
+  <div class="check-row"><div class="check-box checked"></div><div style="font-size:12px;color:var(--neg)">Entiendo que emitir documentos tributarios falsos es un delito en Chile y que DEMO no tiene responsabilidad por usos fraudulentos.</div></div>
+  <div style="height:12px"></div>
+  <button class="btn-primary" onclick="ir('inicio')">Crear mi cuenta</button>
+  <div style="text-align:center;font-size:10px;color:var(--muted);margin-top:6px">Hash SHA-256 registrado · Aceptación con timestamp e IP</div>
+</div>`,
+
+'inicio': `
+<div class="s-header"><div class="s-title">Buenos días, María</div><div class="s-sub">Martes 4 de agosto, 2026</div></div>
+<div class="s-body">
+  <div class="uf-pill">UF hoy: $37.584,56</div>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-label">Cobrado este mes</div><div class="kpi-value">$1,24M</div><div class="kpi-delta">+18% vs jul</div></div>
+    <div class="kpi"><div class="kpi-label">Por cobrar</div><div class="kpi-value" style="color:var(--warn)">$540K</div><div class="kpi-delta">2 documentos</div></div>
+    <div class="kpi"><div class="kpi-label">Emitido hoy</div><div class="kpi-value">$350K</div><div class="kpi-delta">1 boleta</div></div>
+    <div class="kpi"><div class="kpi-label">OCs pendientes</div><div class="kpi-value">2</div><div class="kpi-delta">1 vence hoy</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Acciones rápidas</div>
+    <button class="btn-primary" onclick="ir('emitir')" style="margin-top:8px">+ Emitir boleta o factura</button>
+    <button class="btn-secondary" onclick="ir('cobros')">Registrar pago recibido</button>
+    <button class="btn-secondary" onclick="ir('cobro-activo')">Enviar cobro a cliente</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Pendientes de cobro</div>
+    <div class="doc-row"><div><div class="doc-name">Empresa ABC SpA</div><div class="doc-sub">Boleta #155 · $350.000</div></div><span class="badge b-danger">Vencida</span></div>
+    <div class="doc-row"><div><div class="doc-name">Consultora XYZ</div><div class="doc-sub">Factura #89 · $465.000</div></div><span class="badge b-warn">Pendiente</span></div>
+  </div>
+</div>`,
+
+'emitir': `
+<div class="s-header"><div class="s-title">Emitir documento</div><div class="s-sub">Boleta de honorarios o factura electrónica</div></div>
+<div class="s-body">
+  <div class="voice-btn"><i class="ti ti-microphone"></i></div>
+  <div style="text-align:center;font-size:11px;color:var(--muted);margin-bottom:14px">Toca el micrófono y dicta:<br>"boleta para Empresa ABC, $350.000, consultoría"</div>
+  <div class="seg-row">
+    <div class="seg active">Boleta</div>
+    <div class="seg">Factura</div>
+  </div>
+  <div class="section-label">Receptor</div>
+  <div style="display:flex;gap:8px;margin-bottom:6px">
+    <input class="input-field focused" style="flex:1;margin:0" placeholder="RUT receptor" value="76.192.083-9">
+    <div style="background:var(--nar);border-radius:10px;padding:10px 14px;font-size:11px;font-weight:700;color:var(--neg);cursor:pointer;flex-shrink:0">Buscar</div>
+  </div>
+  <div class="lookup-result"><div class="lookup-name">✓ Empresa ABC SpA</div><div class="lookup-sub">Giro: Consultoría · Santiago · Activo SII</div></div>
+  <div class="section-label">Detalle</div>
+  <input class="input-field" value="Consultoría estratégica agosto 2026">
+  <input class="input-field" value="$350.000">
+  <div class="retenciones">
+    <div class="ret-row"><span>Monto bruto</span><span>$350.000</span></div>
+    <div class="ret-row"><span>Retención 15,25% (Ley 21.133)</span><span>-$53.375</span></div>
+    <div class="ret-total"><span>Neto a recibir</span><span>$296.625</span></div>
+  </div>
+  <button class="btn-primary">Emitir boleta</button>
+</div>`,
+
+'documentos': `
+<div class="s-header"><div class="s-title">Documentos</div><div class="s-sub">Historial de emisiones</div></div>
+<div class="s-body">
+  <div class="seg-row">
+    <div class="seg active">Todos</div>
+    <div class="seg">Boletas</div>
+    <div class="seg">Facturas</div>
+  </div>
+  <div class="card">
+    <div class="doc-row"><div><div class="doc-name">Boleta #155 · Empresa ABC</div><div class="doc-sub">$350.000 · 28 jul 2026</div></div><span class="badge b-danger">Vencida</span></div>
+    <div class="doc-row"><div><div class="doc-name">Factura #89 · Consultora XYZ</div><div class="doc-sub">$465.000 · 15 jul 2026</div></div><span class="badge b-warn">Pendiente</span></div>
+    <div class="doc-row"><div><div class="doc-name">Boleta #154 · Startup DEF</div><div class="doc-sub">$300.000 · 10 jul 2026</div></div><span class="badge b-ok">Pagada</span></div>
+    <div class="doc-row"><div><div class="doc-name">Boleta #153 · Empresa ABC</div><div class="doc-sub">$400.000 · 2 jul 2026</div></div><span class="badge b-ok">Pagada</span></div>
+    <div class="doc-row"><div><div class="doc-name">Factura #88 · Constructora GH</div><div class="doc-sub">$820.000 · 28 jun 2026</div></div><span class="badge b-ok">Pagada</span></div>
+  </div>
+</div>`,
+
+'cobros': `
+<div class="s-header"><div class="s-title">Cobros</div><div class="s-sub">Agosto 2026 · $540.000 por cobrar</div></div>
+<div class="s-body">
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-label">Cobrado</div><div class="kpi-value">$1,24M</div></div>
+    <div class="kpi"><div class="kpi-label">Pendiente</div><div class="kpi-value" style="color:var(--warn)">$540K</div></div>
+  </div>
+  <div class="card">
+    <div class="doc-row"><div><div class="doc-name">Empresa ABC SpA</div><div class="doc-sub">Boleta #155 · $350.000 · vence hoy</div></div><span class="badge b-danger">Vencida</span></div>
+    <div class="doc-row"><div><div class="doc-name">Consultora XYZ Ltda</div><div class="doc-sub">Factura #89 · $465.000 · 12 días</div></div><span class="badge b-warn">Pendiente</span></div>
+    <div class="doc-row"><div><div class="doc-name">Empresa ABC SpA</div><div class="doc-sub">Boleta #153 · $400.000 · 15 jul</div></div><span class="badge b-ok">Pagada</span></div>
+    <div class="doc-row"><div><div class="doc-name">Startup DEF</div><div class="doc-sub">Boleta #154 · $300.000 · 20 jul</div></div><span class="badge b-ok">Pagada</span></div>
+  </div>
+  <button class="btn-primary" onclick="ir('cobro-activo')">Enviar cobro activo</button>
+</div>`,
+
+'cobro-activo': `
+<div class="s-header"><div class="s-title">Cobro activo</div><div class="s-sub">Empresa ABC SpA · Boleta #155</div></div>
+<div class="s-body">
+  <div class="section-label">Mensaje de cobro</div>
+  <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:10px;font-size:11px;color:var(--neg);line-height:1.6;margin-bottom:10px">
+    Hola Empresa ABC SpA,<br><br>Te escribo para recordarte el pago pendiente de la Boleta #155 por $350.000 emitida el 28 de julio.<br><br>Transferencia a:<br>RUT: 12.345.678-9<br>Banco: [tu banco]<br><br>Gracias,<br>María González
+  </div>
+  <div class="section-label">PDF adjunto</div>
+  <div class="card" style="display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:10px">
+    <i class="ti ti-file-type-pdf" style="font-size:22px;color:var(--neg)"></i>
+    <div style="flex:1"><div class="doc-name">Boleta_155_EmpresaABC.pdf</div><div class="doc-sub">Documento oficial SII · 48 KB</div></div>
+    <i class="ti ti-check" style="font-size:18px;color:var(--nar)"></i>
+  </div>
+  <div class="section-label">Enviar por</div>
+  <div class="method-row">
+    <div class="method-btn active"><i class="ti ti-brand-whatsapp"></i>WhatsApp</div>
+    <div class="method-btn"><i class="ti ti-mail"></i>Email</div>
+  </div>
+  <input class="input-field" value="+56 9 1234 5678">
+  <button class="btn-primary">Abrir WhatsApp con el mensaje</button>
+  <div class="safe-note"><i class="ti ti-info-circle" style="font-size:14px;flex-shrink:0"></i>WhatsApp no permite adjuntar el PDF automáticamente. DEMO lo descarga a tu dispositivo para que lo adjuntes tú manualmente.</div>
+</div>`,
+
+'oc': `
+<div class="s-header"><div class="s-title">Órdenes de compra</div><div class="s-sub">2 pendientes · 1 vence hoy</div></div>
+<div class="s-body">
+  <div class="oc-origin">
+    <div class="oc-btn"><i class="ti ti-mail"></i>Email</div>
+    <div class="oc-btn active"><i class="ti ti-camera"></i>Foto / PDF</div>
+    <div class="oc-btn"><i class="ti ti-pencil"></i>Manual</div>
+  </div>
+  <div class="seg-row" style="margin-bottom:10px">
+    <div class="seg active">Todas</div>
+    <div class="seg">Pendientes</div>
+  </div>
+  <div class="card">
+    <div class="doc-row"><div><div class="doc-name">OC #4521 · Empresa ABC</div><div class="doc-sub">$465.000 · Vence HOY</div></div><span class="badge b-danger">Vencida</span></div>
+    <div class="doc-row"><div><div class="doc-name">OC #3890 · Startup DEF</div><div class="doc-sub">$280.000 · Vence 15 ago</div></div><span class="badge b-warn">Pendiente</span></div>
+    <div class="doc-row"><div><div class="doc-name">OC #3456 · Consultora XYZ</div><div class="doc-sub">$350.000 · Facturada</div></div><span class="badge b-ok">Facturada</span></div>
+  </div>
+  <button class="btn-primary">+ Nueva OC manual</button>
+</div>`,
+
+'estadisticas': `
+<div class="s-header"><div class="s-title">Estadísticas</div><div class="s-sub">Semana actual · 28 jul – 4 ago</div></div>
+<div class="s-body">
+  <div class="seg-row"><div class="seg active">Semana</div><div class="seg">Mes</div><div class="seg">Año</div></div>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-label">Documentos</div><div class="kpi-value">7</div><div class="kpi-delta">+2 vs anterior</div></div>
+    <div class="kpi"><div class="kpi-label">Monto bruto</div><div class="kpi-value">$2,1M</div><div class="kpi-delta">+18%</div></div>
+    <div class="kpi"><div class="kpi-label">Neto recibido</div><div class="kpi-value">$1,78M</div><div class="kpi-delta">sin retención</div></div>
+    <div class="kpi"><div class="kpi-label">Promedio</div><div class="kpi-value">$300K</div><div class="kpi-delta">por documento</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="margin-bottom:8px">Boletas vs facturas</div>
+    <div class="bar-chart">
+      ${['Lu','Ma','Mi','Ju','Vi','Sa','Do'].map((d,i)=>{
+        const b=[350,0,480,0,315,0,0][i],f=[0,600,0,0,400,0,0][i],mx=600;
+        const hb=Math.round(b/mx*56),hf=Math.round(f/mx*56);
+        return `<div class="bar-col">${hf?`<div class="bar-seg" style="height:${hf}px;background:var(--nar)"></div>`:''} ${hb?`<div class="bar-seg" style="height:${hb}px;background:var(--neg)"></div>`:`<div style="height:3px;background:var(--border);width:100%"></div>`}<span class="bar-label">${d}</span></div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex;gap:12px;font-size:10px;color:var(--muted)">
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;background:var(--neg);border-radius:2px;display:inline-block"></span>Boleta</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;background:var(--nar);border-radius:2px;display:inline-block"></span>Factura</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Top clientes</div>
+    <div class="top-client"><div class="tc-name">Empresa ABC SpA</div><div style="flex:2"><div class="tc-bar" style="width:100%"></div></div><div class="tc-val">$1.000.000</div></div>
+    <div class="top-client"><div class="tc-name">Consultora XYZ</div><div style="flex:2"><div class="tc-bar" style="width:72%"></div></div><div class="tc-val">$715.000</div></div>
+    <div class="top-client"><div class="tc-name">Startup DEF</div><div style="flex:2"><div class="tc-bar" style="width:38%"></div></div><div class="tc-val">$380.000</div></div>
+  </div>
+</div>`,
+
+'certificados': `
+<div class="s-header"><div class="s-title">Certificados de ingresos</div><div class="s-sub">Para bancos, notarías y arrendadores</div></div>
+<div class="s-body">
+  <div class="section-label">Período</div>
+  <div class="seg-row"><div class="seg">Mes</div><div class="seg active">Trimestre</div><div class="seg">Año</div><div class="seg">Rango</div></div>
+  <div class="card"><div class="card-sub">Abr – Jun 2026 · 24 documentos · Bruto $7.290.000 · Neto $6.169.462</div></div>
+  <div class="section-label">Tipo de certificado</div>
+  <div class="seg-row"><div class="seg active">Simple</div><div class="seg">Con firma digital</div></div>
+  <button class="btn-primary">Generar certificado PDF</button>
+  <div class="section-label" style="margin-top:12px">Certificados anteriores</div>
+  <div class="card">
+    <div class="cert-row"><i class="ti ti-file-certificate cert-icon"></i><div style="flex:1"><div class="doc-name">Cert. Q2 2026 · Simple</div><div class="doc-sub">Generado 1 ago · $7,29M</div></div><span class="badge b-ok">Listo</span></div>
+    <div class="cert-row"><i class="ti ti-file-certificate cert-icon"></i><div style="flex:1"><div class="doc-name">Cert. ene–mar 2026 · Firmado</div><div class="doc-sub">Generado 5 abr · $4,12M · QR ✓</div></div><span class="badge b-ok">Listo</span></div>
+  </div>
+</div>`,
+
+'presupuestos': `
+<div class="s-header"><div class="s-title">Presupuestos UF</div><div class="s-sub">2 activos · UF hoy $37.584,56</div></div>
+<div class="s-body">
+  <div class="uf-pill">UF 4 ago 2026: $37.584,56</div>
+  <div class="card">
+    <div class="card-title">Casa Familiar Vitacura</div>
+    <div class="card-sub">Familia Pérez · 500 UF = $18.792.280</div>
+    <div class="progress-bar" style="margin:8px 0 4px"><div class="progress-fill" style="width:48%"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted)"><span>240 UF facturadas (48%)</span><span>260 UF restantes</span></div>
+    <div style="display:flex;gap:5px;margin-top:8px">
+      <span class="badge b-ok">2 pagadas</span>
+      <span class="badge b-warn">1 facturada</span>
+      <span class="badge" style="background:var(--bg);color:var(--muted)">3 pendientes</span>
+    </div>
+    <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+      <div class="cuota-row"><div class="cuota-num">1</div><div style="flex:1"><div class="cuota-hito">Anteproyecto</div><div class="cuota-sub">Boleta #141 · 15 mar</div></div><div><div class="cuota-uf">100 UF</div><div class="cuota-clp">$3.758.456</div></div><span class="badge b-ok">Pagada</span></div>
+      <div class="cuota-row"><div class="cuota-num">4</div><div style="flex:1"><div class="cuota-hito">Inicio de obra</div><div class="cuota-sub">Ago 2026</div></div><div><div class="cuota-uf">100 UF</div><div class="cuota-clp">$3.758.456</div></div><span class="badge b-warn">Pendiente</span></div>
+    </div>
+    <button class="btn-primary" style="margin-top:10px">Emitir cuota 4 →</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Oficinas Providencia</div>
+    <div class="card-sub">Empresa XYZ · 200 UF = $7.516.912</div>
+    <div class="progress-bar" style="margin:8px 0 4px"><div class="progress-fill" style="width:25%"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted)"><span>50 UF facturadas (25%)</span><span>150 UF restantes</span></div>
+  </div>
+  <button class="btn-secondary">+ Nuevo presupuesto en UF</button>
+</div>`,
+
+'clientes': `
+<div class="s-header"><div class="s-title">Clientes / Lookup RUT</div><div class="s-sub">Busca por nombre o RUT</div></div>
+<div class="s-body">
+  <div style="display:flex;gap:8px;margin-bottom:10px">
+    <input class="input-field focused" style="flex:1;margin:0" value="76.192.083-9" placeholder="RUT del receptor">
+    <div style="background:var(--neg);border-radius:10px;padding:10px 14px;font-size:11px;font-weight:700;color:var(--nar);cursor:pointer;flex-shrink:0">Buscar</div>
+  </div>
+  <div class="lookup-result"><div class="lookup-name">✓ Empresa ABC SpA</div><div class="lookup-sub">Giro: Consultoría · Av. Principal 123, Santiago · Estado SII: Activo ●</div></div>
+  <div class="section-label">Clientes frecuentes</div>
+  <div class="pill-row">
+    <div class="pill active">Empresa ABC</div>
+    <div class="pill">Consultora XYZ</div>
+    <div class="pill">Startup DEF</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Historial</div>
+    <div class="doc-row"><div><div class="doc-name">Empresa ABC SpA</div><div class="doc-sub">8 docs · último: 28 jul</div></div><span class="badge b-ok">Activo SII</span></div>
+    <div class="doc-row"><div><div class="doc-name">Consultora XYZ Ltda</div><div class="doc-sub">11 docs · último: 25 jun</div></div><span class="badge b-ok">Activo SII</span></div>
+    <div class="doc-row"><div><div class="doc-name">Startup DEF</div><div class="doc-sub">5 docs · último: 10 may</div></div><span class="badge b-danger">Bloqueado SII</span></div>
+  </div>
+</div>`,
+
+'planes': `
+<div class="s-header"><div class="s-title">Elige tu plan</div><div class="s-sub">Cancelación inmediata · PAC o tarjeta via Fintoc</div></div>
+<div class="s-body">
+  <div class="plan-card" onclick="this.classList.toggle('selected')">
+    <div class="plan-name">Free</div>
+    <div class="plan-price">$0</div>
+    <div class="plan-feat">
+      <div class="feat-line"><div class="feat-dot"></div><span>3 boletas/mes</span></div>
+      <div class="feat-line"><div class="feat-dot"></div><span>Emisión por voz</span></div>
+      <div class="feat-line"><div class="feat-dot-off"></div><span style="color:var(--border)">Cobros y estadísticas</span></div>
+    </div>
+  </div>
+  <div class="plan-card popular selected">
+    <span class="badge b-dark" style="margin-bottom:6px">más popular</span>
+    <div class="plan-name">Pro</div>
+    <div class="plan-price">$8.990 <span style="font-size:11px;font-weight:400;color:var(--muted)">/mes · IVA incluido</span></div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:6px">4 a 30 docs/mes</div>
+    <div class="plan-feat">
+      <div class="feat-line"><div class="feat-dot"></div><span>Todo lo del Free</span></div>
+      <div class="feat-line"><div class="feat-dot"></div><span>Cobros y estadísticas</span></div>
+      <div class="feat-line"><div class="feat-dot"></div><span>Presupuestos en UF</span></div>
+      <div class="feat-line"><div class="feat-dot"></div><span>Certificado simple</span></div>
+    </div>
+  </div>
+  <div class="plan-card" onclick="this.classList.toggle('selected')">
+    <div class="plan-name">Premium</div>
+    <div class="plan-price">$11.990 <span style="font-size:11px;font-weight:400;color:var(--muted)">/mes</span></div>
+    <div class="plan-feat">
+      <div class="feat-line"><div class="feat-dot"></div><span>Todo lo del Pro</span></div>
+      <div class="feat-line"><div class="feat-dot"></div><span>Certificado firmado (FirmaYa)</span></div>
+      <div class="feat-line"><div class="feat-dot"></div><span>Soporte prioritario 4h SLA</span></div>
+    </div>
+  </div>
+  <div class="plan-card" onclick="this.classList.toggle('selected')">
+    <div class="plan-name">Corporativo</div>
+    <div class="plan-price">$16.990 <span style="font-size:11px;font-weight:400;color:var(--muted)">/mes base</span></div>
+    <div class="plan-feat">
+      <div class="feat-line"><div class="feat-dot"></div><span>Hasta 10 RUTs · 5 usuarios</span></div>
+      <div class="feat-line"><div class="feat-dot"></div><span>Roles admin / operador / contador</span></div>
+      <div class="feat-line"><div class="feat-dot"></div><span>API webhooks · SLA 1h</span></div>
+    </div>
+  </div>
+  <button class="btn-primary" onclick="ir('pago')">Continuar con Plan Pro →</button>
+  <div style="text-align:center;font-size:10px;color:var(--muted);margin-top:6px">Cobro mensual automático · Cancela cuando quieras</div>
+</div>`,
+
+'pago': `
+<div class="s-header"><div class="s-title">Suscribir Plan Pro</div><div class="s-sub">$8.990/mes · IVA incluido · Fintoc Recurring Payments</div></div>
+<div class="s-body">
+  <div class="section-label">Medio de pago</div>
+  <div class="method-row">
+    <div class="method-btn active"><i class="ti ti-building-bank"></i>PAC digital</div>
+    <div class="method-btn"><i class="ti ti-credit-card"></i>Tarjeta</div>
+  </div>
+  <div class="section-label">Selecciona tu banco</div>
+  <div class="bank-chips">
+    <div class="bank-chip active">Banco Chile</div>
+    <div class="bank-chip">BCI</div>
+    <div class="bank-chip">Santander</div>
+    <div class="bank-chip">Estado</div>
+    <div class="bank-chip">Scotiabank</div>
+    <div class="bank-chip">Security</div>
+    <div class="bank-chip">BICE</div>
+    <div class="bank-chip">Itaú</div>
+  </div>
+  <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:10px 12px;font-size:11px;color:#166534;margin-bottom:10px">
+    <i class="ti ti-external-link" style="font-size:13px;vertical-align:-2px;margin-right:4px"></i>
+    Se abrirá la app de Banco Chile para autorizar el débito directo. Vuelves a DEMO automáticamente.
+  </div>
+  <input class="input-field" value="12.345.678-9" placeholder="Tu RUT">
+  <button class="btn-primary" onclick="ir('suscripcion-activa')">Autorizar con Banco Chile →</button>
+  <div class="safe-note">
+    <i class="ti ti-shield-check" style="font-size:16px;flex-shrink:0"></i>
+    <span>Pago procesado por Fintoc · PCI-DSS Level 1 · DEMO nunca almacena datos bancarios ni de tarjeta</span>
+  </div>
+</div>`,
+
+'suscripcion-activa': `
+<div class="s-header"><div class="s-title">Tu suscripción</div><div class="s-sub">Plan Pro · activo</div></div>
+<div class="s-body">
+  <div class="card">
+    <span class="subs-state subs-ok">Activo</span>
+    <div class="mini-row"><span>Plan</span><span class="mini-val">Pro</span></div>
+    <div class="mini-row"><span>Monto mensual</span><span class="mini-val">$8.990 (IVA incl.)</span></div>
+    <div class="mini-row"><span>Medio de pago</span><span class="mini-val">PAC · Banco Chile</span></div>
+    <div class="mini-row"><span>Próximo cobro</span><span class="mini-val">1 sep 2026</span></div>
+    <div class="mini-row"><span>Docs este mes</span><span class="mini-val">14 / 30</span></div>
+  </div>
+  <div class="section-label">Historial de cobros</div>
+  <div class="card">
+    <div class="mini-row"><span>1 ago 2026 · $8.990</span><span class="badge b-ok">Cobrado</span></div>
+    <div class="mini-row"><span>1 jul 2026 · $8.990</span><span class="badge b-ok">Cobrado</span></div>
+    <div class="mini-row"><span>1 jun 2026 · $8.990</span><span class="badge b-danger">Falló → reintentado 3 jun</span></div>
+    <div class="mini-row"><span>1 may 2026 · $8.990</span><span class="badge b-ok">Cobrado</span></div>
+  </div>
+  <div class="section-label">Webhooks Fintoc activos</div>
+  <div class="wh-grid">
+    <div class="wh-card"><div class="wh-event">subscription.created</div><div class="wh-desc">Activa el plan en Firestore</div></div>
+    <div class="wh-card"><div class="wh-event">charge.succeeded</div><div class="wh-desc">Renueva el período</div></div>
+    <div class="wh-card"><div class="wh-event">charge.failed</div><div class="wh-desc">Push + Fintoc reintenta</div></div>
+    <div class="wh-card"><div class="wh-event">charge.retried</div><div class="wh-desc">Fintoc gestiona reintentos</div></div>
+    <div class="wh-card"><div class="wh-event">subscription.cancelled</div><div class="wh-desc">Degrada a Free al fin</div></div>
+    <div class="wh-card"><div class="wh-event">subscription.updated</div><div class="wh-desc">Cambia plan o método</div></div>
+  </div>
+  <button class="btn-secondary" style="margin-top:14px;color:var(--danger);border-color:var(--danger)">Cancelar suscripción</button>
+</div>`,
+
+'upgrade': `
+<div class="s-header"><div class="s-title">Límite alcanzado</div><div class="s-sub">Plan Free · 3 de 3 documentos usados</div></div>
+<div class="s-body">
+  <div class="paywall-wrap">
+    <div class="paywall-icon"><i class="ti ti-lock"></i></div>
+    <div class="paywall-title">Has emitido 3 documentos este mes</div>
+    <div class="paywall-sub">El Plan Free incluye 3 boletas o facturas al mes. Para emitir más, pasa al Plan Pro.</div>
+    <div class="card" style="text-align:left;margin-bottom:16px">
+      <div class="plan-name">Plan Pro — $8.990/mes</div>
+      <div class="plan-feat" style="margin-top:6px">
+        <div class="feat-line"><div class="feat-dot"></div><span>Hasta 30 documentos/mes</span></div>
+        <div class="feat-line"><div class="feat-dot"></div><span>Cobros y estadísticas</span></div>
+        <div class="feat-line"><div class="feat-dot"></div><span>Presupuestos en UF</span></div>
+        <div class="feat-line"><div class="feat-dot"></div><span>Certificado simple de ingresos</span></div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px">Equivale a $299/boleta si emites 30 al mes</div>
+    </div>
+    <button class="btn-nar" onclick="ir('planes')">Ver planes y suscribirse →</button>
+    <button class="btn-secondary" onclick="ir('inicio')">Continuar en Free</button>
+  </div>
+</div>`,
+
+'perfil': `
+<div class="s-header"><div class="s-title">Perfil y plan</div><div class="s-sub">María González · 12.345.678-9</div></div>
+<div class="s-body">
+  <div class="card" style="text-align:center;padding:20px">
+    <div class="avatar">MG</div>
+    <div style="font-size:15px;font-weight:700;color:var(--neg)">María González</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:3px">12.345.678-9 · maria@ejemplo.cl</div>
+    <div style="margin-top:10px"><span class="badge b-dark" style="font-size:10px;padding:3px 12px">Plan Pro activo</span></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Suscripción</div>
+    <div class="card-sub">$8.990/mes · Próximo cobro: 1 sep 2026</div>
+    <div class="card-sub" style="color:var(--ok);margin-top:3px">PAC Banco Chile · Fintoc · Pago automático activo</div>
+    <button class="btn-secondary" onclick="ir('suscripcion-activa')" style="margin-top:10px;font-size:11px">Gestionar suscripción</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Aceptación legal</div>
+    <div class="card-sub">TyC v1.0 aceptados el 4 ago 2026 · 14:32 CLT</div>
+    <div class="card-sub" style="color:var(--muted);margin-top:2px">Hash SHA-256 registrado</div>
+  </div>
+  <div class="tgl-row"><span class="tgl-label">Notificaciones push</span><div class="tgl"></div></div>
+  <div class="tgl-row"><span class="tgl-label">Alertas de cobros vencidos</span><div class="tgl"></div></div>
+  <div class="tgl-row"><span class="tgl-label">Resumen semanal</span><div class="tgl"></div></div>
+  <button class="btn-secondary" style="margin-top:14px;color:var(--danger);border-color:var(--danger)">Cerrar sesión</button>
+</div>`,
+
+'mas': `
+<div class="s-header"><div class="s-title">Más opciones</div><div class="s-sub">Herramientas y configuración</div></div>
+<div class="s-body">
+  <div class="section-label">Herramientas</div>
+  <div class="mas-section">
+    <div class="list-row" onclick="ir('estadisticas')"><div><div class="list-title"><i class="ti ti-chart-bar" style="color:var(--nar);margin-right:8px"></i>Estadísticas</div><div class="list-sub">Dashboard de emisiones semana/mes/año</div></div><i class="ti ti-chevron-right" style="color:var(--border)"></i></div>
+    <div class="list-row" onclick="ir('certificados')"><div><div class="list-title"><i class="ti ti-certificate" style="color:var(--neg);margin-right:8px"></i>Certificados</div><div class="list-sub">Para bancos y notarías</div></div><i class="ti ti-chevron-right" style="color:var(--border)"></i></div>
+    <div class="list-row" onclick="ir('presupuestos')"><div><div class="list-title"><i class="ti ti-calculator" style="color:var(--nar);margin-right:8px"></i>Presupuestos UF <span class="badge b-nar" style="font-size:8px">nuevo</span></div><div class="list-sub">Cuotas por hitos en UF</div></div><i class="ti ti-chevron-right" style="color:var(--border)"></i></div>
+    <div class="list-row" onclick="ir('clientes')"><div><div class="list-title"><i class="ti ti-users" style="color:var(--neg);margin-right:8px"></i>Clientes / RUT <span class="badge b-nar" style="font-size:8px">nuevo</span></div><div class="list-sub">Historial y lookup SII</div></div><i class="ti ti-chevron-right" style="color:var(--border)"></i></div>
+  </div>
+  <div class="section-label">Suscripción</div>
+  <div class="mas-section">
+    <div class="list-row" onclick="ir('planes')"><div><div class="list-title"><i class="ti ti-star" style="color:var(--nar);margin-right:8px"></i>Planes</div><div class="list-sub">Free / Pro / Premium / Corporativo</div></div><i class="ti ti-chevron-right" style="color:var(--border)"></i></div>
+    <div class="list-row" onclick="ir('suscripcion-activa')"><div><div class="list-title"><i class="ti ti-refresh" style="color:var(--neg);margin-right:8px"></i>Suscripción activa <span class="badge b-nar" style="font-size:8px">Fintoc</span></div><div class="list-sub">Plan Pro · $8.990/mes</div></div><i class="ti ti-chevron-right" style="color:var(--border)"></i></div>
+  </div>
+  <div class="section-label">Cuenta</div>
+  <div class="mas-section">
+    <div class="list-row" onclick="ir('perfil')"><div><div class="list-title"><i class="ti ti-user" style="color:var(--neg);margin-right:8px"></i>Perfil y plan</div><div class="list-sub">María González · Pro</div></div><i class="ti ti-chevron-right" style="color:var(--border)"></i></div>
+    <div class="list-row"><div><div class="list-title"><i class="ti ti-bell" style="color:var(--neg);margin-right:8px"></i>Notificaciones</div><div class="list-sub">Activas · 3 tipos</div></div><i class="ti ti-chevron-right" style="color:var(--border)"></i></div>
+    <div class="list-row"><div><div class="list-title"><i class="ti ti-message" style="color:var(--neg);margin-right:8px"></i>Template de cobro activo</div><div class="list-sub">Mensaje para WhatsApp/email</div></div><i class="ti ti-chevron-right" style="color:var(--border)"></i></div>
+  </div>
+</div>`,
+};
+
+const TAB_MAP = {
+  inicio:'inicio', emitir:'emitir', documentos:'emitir',
+  cobros:'cobros', 'cobro-activo':'cobros',
+  oc:'oc', estadisticas:'mas', certificados:'mas',
+  presupuestos:'mas', clientes:'mas', planes:'mas',
+  pago:'mas', 'suscripcion-activa':'mas', upgrade:'mas',
+  perfil:'mas', mas:'mas',
+  'ob-email':null,'ob-rut':null,'ob-otp':null,'ob-legal':null,
+};
+
+function ir(pantalla) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const ni = document.getElementById('ni-' + pantalla);
+  if (ni) ni.classList.add('active');
+
+  document.getElementById('screen').innerHTML = SCREENS[pantalla] ||
+    `<div class="s-header"><div class="s-title">${pantalla}</div></div>
+     <div class="s-body"><div class="card"><div class="card-sub">Pantalla en construcción</div></div></div>`;
+
+  const isOnboarding = ['ob-email','ob-rut','ob-otp','ob-legal'].includes(pantalla);
+  document.getElementById('tab-bar').style.display = isOnboarding ? 'none' : 'flex';
+
+  document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active','active-nar'));
+  const tabId = TAB_MAP[pantalla];
+  if (tabId) {
+    const el = document.getElementById('tab-' + tabId);
+    if (el) el.classList.add(['estadisticas','presupuestos'].includes(pantalla) ? 'active-nar' : 'active');
+  }
+}
+
+ir('inicio');
+</script>
+</body>
+</html>
