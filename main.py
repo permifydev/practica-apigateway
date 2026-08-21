@@ -1,6 +1,6 @@
 """
 SII Connect - Prototipo mobile en Flet
-2 pantallas: Login (sin verificación real, solo para pruebas) y Home / Dashboard.
+2 pantallas: Login (sin verificación real, solo para pruebas),inicio y emitir boletas(fixionnn)
 
 Correr local:
     flet run main.py
@@ -9,7 +9,24 @@ Correr como app web (para probar en el navegador o subir a Render):
     flet run --web main.py
 """
 
+import re
 import flet as ft
+
+def parse_monto(texto):
+    """Convierte cualquier input de usuario a un entero de pesos, sin poder lanzar excepción.
+    Acepta '350000', '350.000', '$350.000', '350,000', espacios, etc. -
+    simplemente descarta todo lo que no sea un dígito."""
+    if not texto:
+        return None
+    solo_digitos = re.sub(r"[^\d]", "", str(texto))
+    if not solo_digitos:
+        return None
+    return int(solo_digitos)
+
+
+def formato_clp(monto):
+    """Formatea un entero como pesos chilenos: 1234567 -> '$1.234.567'."""
+    return f"${monto:,.0f}".replace(",", ".")
 
 #paleta de colores
 NAVY = "#0A1F44"
@@ -37,6 +54,7 @@ def main(page: ft.Page):
     page.padding = 0
     page.fonts = {}
     page.theme = ft.Theme(font_family="Roboto")
+    page.theme_mode = ft.ThemeMode.LIGHT
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
 
     state = {"nombre": "María"}
@@ -258,9 +276,18 @@ def main(page: ft.Page):
             backdrop.visible = False
             page.update()
 
+        def go_to_emitir(e=None):
+            page.controls.clear()
+            page.add(build_emitir())
+            page.update()
+
         def go_to_screen(nombre):
             def handler(e):
                 close_drawer()
+                if nombre == "Emitir":
+                    go_to_emitir()
+                elif nombre != "Inicio":
+                    page.show_dialog(ft.SnackBar(content=ft.Text(f"'{nombre}' está en desarrollo")))
             return handler
 
         def menu_section_label(text):
@@ -353,14 +380,14 @@ def main(page: ft.Page):
                                 menu_item(ft.Icons.ADD_CIRCLE_OUTLINE, "Emitir"),
                                 menu_item(ft.Icons.DESCRIPTION_OUTLINED, "Documentos"),
                                 menu_item(ft.Icons.ATTACH_MONEY, "Cobros"),
-                                menu_item(ft.Icons.BOLT, "Cobro activo", badge="NUEVO"),
+                                menu_item(ft.Icons.BOLT, "Cobro activo"),
                                 menu_item(ft.Icons.SHOPPING_BAG_OUTLINED, "Órdenes de compra"),
-                                menu_item(ft.Icons.BAR_CHART, "Estadísticas", badge="NUEVO"),
+                                menu_item(ft.Icons.BAR_CHART, "Estadísticas"),
                                 ft.Container(height=10),
                                 menu_section_label("HERRAMIENTAS"),
                                 menu_item(ft.Icons.SHIELD_OUTLINED, "Certificados"),
-                                menu_item(ft.Icons.ACCOUNT_BALANCE_OUTLINED, "Presupuestos UF", badge="NUEVO"),
-                                menu_item(ft.Icons.PEOPLE_OUTLINE, "Clientes / RUT", badge="NUEVO"),
+                                menu_item(ft.Icons.ACCOUNT_BALANCE_OUTLINED, "Presupuestos UF"),
+                                menu_item(ft.Icons.PEOPLE_OUTLINE, "Clientes / RUT"),
                                 ft.Container(height=10),
                                 menu_section_label("CUENTA"),
                                 menu_item(ft.Icons.STAR_OUTLINE, "Planes"),
@@ -485,7 +512,7 @@ def main(page: ft.Page):
                             spacing=10,
                             controls=[
                                 ft.Text("Acciones rápidas", size=15, weight=ft.FontWeight.BOLD, color=NAVY),
-                                quick_action("+ Emitir boleta o factura"),
+                                quick_action("+ Emitir boleta", on_click=go_to_emitir),
                                 quick_action("Registrar pago recibido"),
                                 quick_action("Enviar cobro a cliente"),
                                 quick_action("Ver pendientes de cobro"),
@@ -532,6 +559,204 @@ def main(page: ft.Page):
             expand=True,
             controls=[page_content, backdrop, drawer],
         )
+
+    # emitir boleta (BHE)
+    def build_emitir():
+        # POST /api/v2/sii/bhe/emitidas/emitir
+        # Requiere: rut+clave del emisor (va en el body no persiste)
+        # datos del receptor, monto y modo de retención 
+
+        def campo(label, hint, **kwargs):
+            return ft.TextField(
+                label=label,
+                hint_text=hint,
+                color=NAVY,
+                label_style=ft.TextStyle(color=GREY_TEXT),
+                border_radius=10,
+                border_color="#D8DCE3",
+                bgcolor="white",
+                height=52,
+                **kwargs,
+            )
+
+        rut_receptor = campo("RUT del receptor", "12.345.678-9")
+        nombre_receptor = campo("Nombre o razón social", "Empresa o persona receptora")
+        email_receptor = campo("Correo del receptor (opcional)", "contacto@empresa.cl")
+        descripcion = ft.TextField(
+            label="Descripción del servicio prestado",
+            hint_text="Ej: Asesoría en desarrollo de software",
+            multiline=True,
+            min_lines=2,
+            max_lines=3,
+            color=NAVY,
+            label_style=ft.TextStyle(color=GREY_TEXT),
+            border_radius=10,
+            border_color="#D8DCE3",
+            bgcolor="white",
+        )
+        monto_bruto = campo("Monto bruto ($)", "350000", keyboard_type=ft.KeyboardType.NUMBER)
+
+        retencion = ft.RadioGroup(
+            value="0",
+            content=ft.Column(
+                spacing=2,
+                controls=[
+                    ft.Radio(value="0", label="Sin retención", label_style=ft.TextStyle(color=NAVY), active_color=BLUE),
+                    ft.Radio(value="1", label="Retiene el receptor", label_style=ft.TextStyle(color=NAVY), active_color=BLUE),
+                    ft.Radio(value="2", label="Retiene el emisor", label_style=ft.TextStyle(color=NAVY), active_color=BLUE),
+                ],
+            ),
+        )
+
+        resumen_text = ft.Text("Completa el monto para ver el resumen.", size=12, color=GREY_TEXT)
+        error_text = ft.Text("", color=RED_TEXT, size=12)
+
+        TASA_REF = 0.1525 # tasa actual pero igual ir confirmado en el sii
+
+        def actualizar_resumen(e=None):
+            bruto = parse_monto(monto_bruto.value)
+            if not bruto or bruto <= 0:
+                resumen_text.value = "Completa el monto para ver el resumen."
+                resumen_text.color = GREY_TEXT
+                page.update()
+                return
+            retenido = round(bruto * TASA_REF) if retencion.value != "0" else 0
+            liquido = bruto - retenido
+            quien = {"0": "sin retención", "1": "retiene el receptor", "2": "retiene el emisor"}[retencion.value]
+            resumen_text.value = (
+                f"Bruto: {formato_clp(bruto)} · Retenido (ref. 15.25%): {formato_clp(retenido)} · "
+                f"Líquido: {formato_clp(liquido)} ({quien})"
+            )
+            resumen_text.color = NAVY
+            page.update()
+
+        monto_bruto.on_change = actualizar_resumen
+        retencion.on_change = actualizar_resumen
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            bgcolor="white",
+            title=ft.Row(
+                spacing=8,
+                controls=[
+                    ft.Icon(ft.Icons.CHECK_CIRCLE, color=GREEN),
+                    ft.Text("Boleta emitida", color=NAVY, weight=ft.FontWeight.BOLD),
+                ],
+            ),
+            content=ft.Text("", color=GREY_TEXT, size=13),
+            actions=[
+                ft.TextButton(
+                    content=ft.Text("Emitir otra", color=BLUE),
+                    on_click=lambda e: cerrar_dialogo(),
+                ),
+                ft.ElevatedButton(
+                    content=ft.Text("Volver al inicio"),
+                    on_click=lambda e: volver_inicio(),
+                    style=ft.ButtonStyle(
+                        bgcolor=NAVY, color="white", shape=ft.RoundedRectangleBorder(radius=10)
+                    ),
+                ),
+            ],
+        )
+        def cerrar_dialogo():
+            page.pop_dialog()
+
+        def volver_inicio():
+            page.pop_dialog()
+            page.controls.clear()
+            page.add(build_home())
+            page.update()
+
+        def emitir_boleta(e):
+            if not rut_receptor.value or not nombre_receptor.value or not monto_bruto.value:
+                error_text.value = "Completa RUT, nombre y monto para emitir la boleta"
+                page.update()
+                return
+            bruto = parse_monto(monto_bruto.value)
+            if not bruto or bruto <= 0:
+                error_text.value = "Ingresa un monto válido"
+                page.update()
+                return
+
+            error_text.value = ""
+            state["folio_boleta"] = state.get("folio_boleta", 1204) + 1
+            folio = state["folio_boleta"]
+            retenido = round(bruto * TASA_REF) if retencion.value != "0" else 0
+            liquido = bruto - retenido
+            dialog.content = ft.Text(
+                f"Boleta N° {folio} por {formato_clp(bruto)} a nombre de {nombre_receptor.value} "
+                f"(RUT {rut_receptor.value}). Monto líquido: {formato_clp(liquido)}.",
+                color=GREY_TEXT,
+                size=13,
+            )
+            page.show_dialog(dialog)
+
+        def volver_home(e=None):
+            page.controls.clear()
+            page.add(build_home())
+            page.update()
+
+        header = ft.Container(
+            bgcolor="white",
+            padding=ft.Padding.symmetric(horizontal=16, vertical=14),
+            content=ft.Row(
+                spacing=4,
+                controls=[
+                    ft.IconButton(icon=ft.Icons.ARROW_BACK, icon_color=NAVY, on_click=volver_home),
+                    ft.Text("Emitir boleta", size=15, weight=ft.FontWeight.BOLD, color=NAVY),
+                ],
+            ),
+        )
+
+        def form_card(title, controls):
+            return ft.Container(
+                bgcolor="white",
+                border_radius=CARD_RADIUS,
+                padding=18,
+                width=380,
+                shadow=ft.BoxShadow(blur_radius=12, color="#12000000", offset=ft.Offset(0, 3)),
+                content=ft.Column(
+                    spacing=12,
+                    controls=[ft.Text(title, size=15, weight=ft.FontWeight.BOLD, color=NAVY)] + controls,
+                ),
+            )
+
+        body = ft.Container(
+            padding=ft.Padding.symmetric(horizontal=20, vertical=16),
+            content=ft.Column(
+                spacing=14,
+                horizontal_alignment=ft.CrossAxisAlignment.START,
+                controls=[
+                    ft.Text("Nueva boleta de honorarios", size=20, weight=ft.FontWeight.BOLD, color=NAVY),
+                    ft.Text("Documento tributario tipo 66 (BHE), vía API SII.", size=13, color=GREY_TEXT),
+                    form_card("Datos del receptor", [rut_receptor, nombre_receptor, email_receptor]),
+                    form_card("Detalle del servicio", [descripcion, monto_bruto]),
+                    form_card("Retención", [retencion, resumen_text]),
+                    error_text,
+                    ft.ElevatedButton(
+                        content=ft.Text("Emitir boleta"),
+                        width=380,
+                        height=48,
+                        style=ft.ButtonStyle(
+                            bgcolor=NAVY,
+                            color="white",
+                            shape=ft.RoundedRectangleBorder(radius=10),
+                            text_style=ft.TextStyle(weight=ft.FontWeight.BOLD, size=15),
+                        ),
+                        on_click=emitir_boleta,
+                    ),
+                    ft.Text(
+                        "Prototipo: no se realiza una llamada real a la API de apigateway.cl. "
+                        "En producción esta acción llamaría a POST /api/v2/sii/bhe/emitidas/emitir.",
+                        size=11,
+                        color=GREY_TEXT,
+                    ),
+                    ft.Container(height=30),
+                ],
+            ),
+        )
+
+        return ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO, expand=True, controls=[header, body])
 
     # Arranca en Login
     page.add(build_login())
