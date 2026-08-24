@@ -1,6 +1,6 @@
 """
 SII Connect - Prototipo mobile en Flet
-2 pantallas: Login (sin verificación real, solo para pruebas),inicio y emitir boletas(fixionnn)
+2 pantallas: Login (sin verificación real, solo para pruebas),inicio, emitir boletas y ver mis bhe(fixionnn)
 
 Correr local:
     flet run main.py
@@ -12,6 +12,7 @@ Correr como app web (para probar en el navegador o subir a Render):
 import re
 import flet as ft
 
+#convertidor de valores o sino se trunca
 def parse_monto(texto):
     """Convierte cualquier input de usuario a un entero de pesos, sin poder lanzar excepción.
     Acepta '350000', '350.000', '$350.000', '350,000', espacios, etc. -
@@ -44,9 +45,11 @@ GREY_TEXT = "#6B7280"
 CARD_RADIUS = 16
 MENU_HOVER_BG = "#1AFFFFFF"
 MENU_ACTIVE_BG = "#16295C"
+#FUNCION PRINCIPAL(menu)
+#aqui ejecuta al atrancar la app,se definen las
+#pantallas y funciones de la app(login, inicio, emitir y mis bhe)
 
-
-def main(page: ft.Page):
+def main(page: ft.Page): #configuracion general 
     page.title = "SII Connect"
     page.bgcolor = BG
     page.window.width = 420
@@ -59,7 +62,10 @@ def main(page: ft.Page):
 
     state = {"nombre": "María"}
 
-    #login
+    #Pantalla login 
+    #primera pantalla para que vea el usuario,
+    #aqui no validamos al usuario/contraseña real solo
+    #que tenga algo escrito en los campos
     def build_login():
         email_field = ft.TextField(
             label="Correo electrónico",
@@ -83,19 +89,22 @@ def main(page: ft.Page):
             bgcolor="white",
             height=52,
         )
+        
         error_text = ft.Text("", color=RED_TEXT, size=12)
 
         def do_login(e):
-            # no valida solo pide que tengan algo escrito
+            # correo
             if not email_field.value or not pass_field.value:
                 error_text.value = "Ingresa correo y contraseña para continuar"
                 page.update()
                 return
             correo = email_field.value.strip()
-            #lo que esté antes del @ se usa como nombre
+            ##lo q este antes del @ se usa como nombre
+            
             usuario = correo.split("@")[0] if "@" in correo else correo
             usuario = usuario.replace(".", " ").replace("_", " ").strip()
             state["nombre"] = usuario.title() if usuario else "Usuario"
+            #se cambia de pantalla de login a inicio
             page.controls.clear()
             page.add(build_home())
             page.update()
@@ -132,7 +141,7 @@ def main(page: ft.Page):
                         ],
                     ),
                     ft.Container(height=28),
-                    # Card
+                    # Card (tarjeta blanca centra conn formulaio de login)
                     ft.Container(
                         bgcolor="white",
                         border_radius=CARD_RADIUS,
@@ -175,6 +184,8 @@ def main(page: ft.Page):
         )
 
     #incio
+    #stat_card: arma cada una de las tarjetas blancas de resumen
+    #cobrado de este mes, por cobrar,emitido hoy,ocs pendientes
     def stat_card(label, value, value_color, sub, sub_color=GREY_TEXT):
         return ft.Container(
             bgcolor="white",
@@ -191,7 +202,9 @@ def main(page: ft.Page):
                 ],
             ),
         )
-
+#quick_action arma un boton de la lista"acciones rapidas" en inicio
+#ej: "+ emitir boleta", "registrar pago recibido"
+#filled=True-> boton relleno (navy); filled=False -> boton con borde
     def quick_action(text, filled=False, on_click=None):
         if filled:
             return ft.ElevatedButton(
@@ -219,6 +232,8 @@ def main(page: ft.Page):
             on_click=on_click,
         )
 
+#pending_row arma cada fila de la lista "pendientes de cobro" en Inicio
+#nombre empresa,documento,estado Vencida/Pendiente conn su color y día
     def pending_row(empresa, doc, monto, estado, dias):
         estado_bg = RED_BG if estado == "Vencida" else YELLOW_BG
         estado_color = RED_TEXT if estado == "Vencida" else YELLOW_TEXT
@@ -253,39 +268,55 @@ def main(page: ft.Page):
             ),
         )
 
+#do_logout es que pasa al tocar el boton o icono de cerrar sesion
     def do_logout(e):
         page.controls.clear()
         page.add(build_login())
         page.update()
 
+#pantalla inicio se muestra justo despues de hacer login incluye el menu 
+#deslizable (drawer), headere superior iconos menu titulo campana logout
+#las tartejas de resumen(stat_card)
+#tarjeta de acciones rapidas (quick_action)
+#tarjeta pendientes de cobro (pending_now)
+#
+
     def build_home():
         # menú lateral (abierto/cerrado)
         drawer_open = {"value": False}
-
+        #abre el menu lateral, desliza desde la izquierda+oscurece el fondo
         def toggle_drawer(e=None):
             drawer_open["value"] = not drawer_open["value"]
             drawer.left = 0 if drawer_open["value"] else -300
             backdrop.visible = drawer_open["value"]
             backdrop.opacity = 0.4 if drawer_open["value"] else 0
             page.update()
-
+        #cierra el menu lateral
         def close_drawer(e=None):
             drawer_open["value"] = False
             drawer.left = -300
             backdrop.opacity = 0
             backdrop.visible = False
             page.update()
-
+        #navela a la pantalla emitir boltea
         def go_to_emitir(e=None):
             page.controls.clear()
             page.add(build_emitir())
             page.update()
+        #navega a la pantalla mis bhe
+        def go_to_documentos(e=None):
+            page.controls.clear()
+            page.add(build_documentos())
+            page.update()
 
+        ##
         def go_to_screen(nombre):
             def handler(e):
                 close_drawer()
                 if nombre == "Emitir":
                     go_to_emitir()
+                elif nombre == "Mis BHE":
+                    go_to_documentos()
                 elif nombre != "Inicio":
                     page.show_dialog(ft.SnackBar(content=ft.Text(f"'{nombre}' está en desarrollo")))
             return handler
@@ -316,6 +347,7 @@ def main(page: ft.Page):
                         content=ft.Text(badge, size=9, color="white", weight=ft.FontWeight.BOLD),
                     )
                 )
+             
             item = ft.Container(
                 on_click=go_to_screen(label),
                 padding=ft.Padding.symmetric(horizontal=16, vertical=11),
@@ -346,7 +378,7 @@ def main(page: ft.Page):
             content=ft.Column(
                 spacing=0,
                 controls=[
-                    #menu
+                   
                     ft.Container(
                         padding=ft.Padding.symmetric(horizontal=18, vertical=18),
                         border=ft.Border.only(bottom=ft.BorderSide(1, "#1C2E5C")),
@@ -377,8 +409,8 @@ def main(page: ft.Page):
                                 ft.Container(height=8),
                                 menu_section_label("PRINCIPAL"),
                                 menu_item(ft.Icons.HOME_OUTLINED, "Inicio"),
-                                menu_item(ft.Icons.ADD_CIRCLE_OUTLINE, "Emitir"),
-                                menu_item(ft.Icons.DESCRIPTION_OUTLINED, "Documentos"),
+                                menu_item(ft.Icons.ADD_CIRCLE_OUTLINE, "Emitir BHE"),
+                                menu_item(ft.Icons.DESCRIPTION_OUTLINED, "Mis BHE"),
                                 menu_item(ft.Icons.ATTACH_MONEY, "Cobros"),
                                 menu_item(ft.Icons.BOLT, "Cobro activo"),
                                 menu_item(ft.Icons.SHOPPING_BAG_OUTLINED, "Órdenes de compra"),
@@ -445,7 +477,7 @@ def main(page: ft.Page):
             animate_opacity=ft.Animation(250, ft.AnimationCurve.DECELERATE),
             on_click=close_drawer,
         )
-
+        
         header = ft.Container(
             bgcolor="white",
             padding=ft.Padding.symmetric(horizontal=16, vertical=14),
@@ -750,6 +782,119 @@ def main(page: ft.Page):
                         "En producción esta acción llamaría a POST /api/v2/sii/bhe/emitidas/emitir.",
                         size=11,
                         color=GREY_TEXT,
+                    ),
+                    ft.Container(height=30),
+                ],
+            ),
+        )
+
+        return ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO, expand=True, controls=[header, body])
+
+    # Mis BHE (listado de boletas emitidas)
+    def build_documentos():
+        # las facturas todavía no están implementadas en la API, por eso el
+        # listado solo trabaja con boletas (BHE)
+        boletas_data = [
+            {"folio": "Boleta #1204", "empresa": "Servicios Norte Ltda.", "monto": 820000, "fecha": "28 jul 2026", "estado": "Pendiente"},
+            {"folio": "Boleta #1178", "empresa": "Tech Solutions SPA", "monto": 125000, "fecha": "15 jul 2026", "estado": "Vencida"},
+            {"folio": "Boleta #155", "empresa": "Empresa ABC", "monto": 350000, "fecha": "28 jul 2026", "estado": "Vencida"},
+            {"folio": "Boleta #154", "empresa": "Startup DEF", "monto": 300000, "fecha": "10 jul 2026", "estado": "Pagada"},
+            {"folio": "Boleta #153", "empresa": "Empresa ABC", "monto": 400000, "fecha": "2 jul 2026", "estado": "Pagada"},
+        ]
+
+        GREEN_BG = "#E1F5EA"
+
+        estados_visual = {
+            "Vencida": (RED_BG, RED_TEXT),
+            "Pendiente": (YELLOW_BG, YELLOW_TEXT),
+            "Pagada": (GREEN_BG, GREEN),
+        }
+
+        def documento_row(item):
+            estado_bg, estado_color = estados_visual[item["estado"]]
+            return ft.Container(
+                padding=ft.Padding.symmetric(vertical=10),
+                border=ft.Border.only(bottom=ft.BorderSide(1, "#EEF0F3")),
+                content=ft.Row(
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    controls=[
+                        ft.Column(
+                            spacing=2,
+                            horizontal_alignment=ft.CrossAxisAlignment.START,
+                            controls=[
+                                ft.Text(f"{item['folio']} · {item['empresa']}", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
+                                ft.Text(f"{formato_clp(item['monto'])} · {item['fecha']}", size=12, color=GREY_TEXT),
+                            ],
+                        ),
+                        ft.Container(
+                            bgcolor=estado_bg,
+                            border_radius=12,
+                            padding=ft.Padding.symmetric(horizontal=10, vertical=3),
+                            content=ft.Text(item["estado"], size=11, color=estado_color, weight=ft.FontWeight.BOLD),
+                        ),
+                    ],
+                ),
+            )
+
+        lista_column = ft.Column(spacing=0, controls=[documento_row(b) for b in boletas_data])
+        sin_resultados = ft.Text("No se encontraron boletas para tu búsqueda.", size=12, color=GREY_TEXT)
+
+        def filtrar_documentos(e=None):
+            texto = (busqueda.value or "").strip().lower()
+            if not texto:
+                filtradas = boletas_data
+            else:
+                filtradas = [
+                    b for b in boletas_data
+                    if texto in b["empresa"].lower() or texto in b["folio"].lower()
+                ]
+            lista_column.controls = [documento_row(b) for b in filtradas] if filtradas else [sin_resultados]
+            page.update()
+
+        busqueda = ft.TextField(
+            hint_text="Buscar por empresa o folio",
+            prefix_icon=ft.Icons.SEARCH,
+            color=NAVY,
+            border_radius=10,
+            border_color="#D8DCE3",
+            bgcolor="white",
+            height=48,
+            on_change=filtrar_documentos,
+        )
+
+        def volver_home(e=None):
+            page.controls.clear()
+            page.add(build_home())
+            page.update()
+
+        header = ft.Container(
+            bgcolor="white",
+            padding=ft.Padding.symmetric(horizontal=16, vertical=14),
+            content=ft.Row(
+                spacing=4,
+                controls=[
+                    ft.IconButton(icon=ft.Icons.ARROW_BACK, icon_color=NAVY, on_click=volver_home),
+                    ft.Text("Mis BHE", size=15, weight=ft.FontWeight.BOLD, color=NAVY),
+                ],
+            ),
+        )
+
+        body = ft.Container(
+            padding=ft.Padding.symmetric(horizontal=20, vertical=16),
+            content=ft.Column(
+                spacing=14,
+                horizontal_alignment=ft.CrossAxisAlignment.START,
+                controls=[
+                    ft.Text("Boletas emitidas", size=20, weight=ft.FontWeight.BOLD, color=NAVY),
+                    ft.Text("Búsqueda por empresa o folio.", size=13, color=GREY_TEXT),
+                    busqueda,
+                    ft.Container(
+                        bgcolor="white",
+                        border_radius=CARD_RADIUS,
+                        padding=18,
+                        width=380,
+                        shadow=ft.BoxShadow(blur_radius=12, color="#12000000", offset=ft.Offset(0, 3)),
+                        content=lista_column,
                     ),
                     ft.Container(height=30),
                 ],
