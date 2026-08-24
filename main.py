@@ -10,6 +10,7 @@ Correr como app web (para probar en el navegador o subir a Render):
 """
 
 import re
+import datetime
 import flet as ft
 
 #convertidor de valores o sino se trunca
@@ -28,6 +29,26 @@ def parse_monto(texto):
 def formato_clp(monto):
     """Formatea un entero como pesos chilenos: 1234567 -> '$1.234.567'."""
     return f"${monto:,.0f}".replace(",", ".")
+
+
+# meses abreviados en español, para poder leer fechas tipo "28 jul 2026"
+MESES_ES = {
+    "ene": 1, "feb": 2, "mar": 3, "abr": 4, "may": 5, "jun": 6,
+    "jul": 7, "ago": 8, "sep": 9, "oct": 10, "nov": 11, "dic": 12,
+}
+
+
+def parse_fecha_bhe(texto):
+    """Convierte una fecha en texto tipo '28 jul 2026' a un date real,
+    para poder ORDENAR las boletas por fecha (de hoy hacia el pasado).
+    Si el texto no calza con el formato esperado, devuelve la fecha más
+    antigua posible para que esa boleta quede al final del listado."""
+    try:
+        dia, mes_txt, anio = texto.strip().split()
+        mes = MESES_ES[mes_txt.lower()[:3]]
+        return datetime.date(int(anio), mes, int(dia))
+    except Exception:
+        return datetime.date.min
 
 #paleta de colores
 NAVY = "#0A1F44"
@@ -801,6 +822,9 @@ def main(page: ft.Page): #configuracion general
             {"folio": "Boleta #154", "empresa": "Startup DEF", "monto": 300000, "fecha": "10 jul 2026", "estado": "Pagada"},
             {"folio": "Boleta #153", "empresa": "Empresa ABC", "monto": 400000, "fecha": "2 jul 2026", "estado": "Pagada"},
         ]
+
+        # orden por fecha: de la más reciente (más cerca de hoy) hacia el pasado
+        boletas_data.sort(key=lambda b: parse_fecha_bhe(b["fecha"]), reverse=True)
 
         GREEN_BG = "#E1F5EA"
 
