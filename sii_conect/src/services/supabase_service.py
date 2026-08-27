@@ -16,21 +16,20 @@ class SupabaseService:
             if self.url and self.key and "tu-proyecto" not in self.url:
                 self.client = create_client(self.url, self.key)
             else:
-                logger.warning("Supabase en modo simulación (credenciales pendientes).")
+                logger.warning("Supabase en modo simulacion (credenciales pendientes).")
         except Exception as e:
             logger.error(f"Error al conectar con Supabase: {e}")
 
     def validar_usuario(self, identificador: str) -> dict | None:
         """Valida si el email o RUT existe en la tabla 'perfiles' y retorna su rol."""
         if not self.client:
-            # 3 Usuarios de prueba exigidos por el jefe para modo local/offline
             usuarios_mock = {
                 "contador@test.com": {"id": "1", "nombre": "Contador Test", "rut": "11.111.111-1", "rol": "contador"},
                 "11.111.111-1": {"id": "1", "nombre": "Contador Test", "rut": "11.111.111-1", "rol": "contador"},
-                
-                "emisor@test.com": {"id": "2", "nombre": "María Emisora", "rut": "22.222.222-2", "rol": "emisor"},
-                "22.222.222-2": {"id": "2", "nombre": "María Emisora", "rut": "22.222.222-2", "rol": "emisor"},
-                
+
+                "emisor@test.com": {"id": "2", "nombre": "Maria Emisora", "rut": "22.222.222-2", "rol": "emisor"},
+                "22.222.222-2": {"id": "2", "nombre": "Maria Emisora", "rut": "22.222.222-2", "rol": "emisor"},
+
                 "cliente@test.com": {"id": "3", "nombre": "Cliente Receptor", "rut": "33.333.333-3", "rol": "cliente"},
                 "33.333.333-3": {"id": "3", "nombre": "Cliente Receptor", "rut": "33.333.333-3", "rol": "cliente"},
             }
@@ -75,6 +74,24 @@ class SupabaseService:
             logger.error(f"Error en receptor: {e}")
             return None
 
+    def obtener_certificado_activo(self, usuario_id: str) -> dict | None:
+        """Devuelve el certificado digital vigente del usuario, si tiene uno."""
+        if not self.client:
+            return {"id": "mock-uuid-certificado", "alias": "Certificado de prueba"}
+
+        try:
+            res = self.client.table("certificados_digitales")\
+                .select("id, alias, fecha_vencimiento")\
+                .eq("usuario_id", usuario_id)\
+                .eq("estado", "activo")\
+                .order("fecha_vencimiento", desc=True)\
+                .limit(1)\
+                .execute()
+            return res.data[0] if res.data else None
+        except Exception as e:
+            logger.error(f"Error al consultar certificado activo: {e}")
+            return None
+
     def guardar_boleta(self, boleta_data: dict) -> dict | None:
         """Inserta una boleta en la tabla principal 'boletas'."""
         if not self.client:
@@ -91,20 +108,18 @@ class SupabaseService:
     def obtener_boletas_por_rol(self, rol: str, usuario_id: str, rut: str = "") -> list[dict]:
         """Recupera las boletas aplicando los permisos estrictos de cada rol."""
         if not self.client:
-            # Datos simulados para pruebas locales
             return [
                 {
-                    "numero": 101,
+                    "folio_sii": "101",
                     "fecha_emision": "2026-08-20",
                     "contraparte_nombre": "Empresa Mock SpA",
-                    "monto_total": 500000,
-                    "estado": "Vigente"
+                    "monto_bruto": 500000,
+                    "estado": "pendiente"
                 }
             ]
 
         try:
             if rol == "emisor":
-                # El emisor solo ve lo que ha emitido él mismo
                 res = self.client.table("boletas")\
                     .select("*, receptores(nombre)")\
                     .eq("usuario_id", usuario_id)\
@@ -113,7 +128,6 @@ class SupabaseService:
                 return [{"contraparte_nombre": r.get("receptores", {}).get("nombre", "Sin Nombre"), **r} for r in res.data]
 
             elif rol == "contador":
-                # El contador ve el historial global
                 res = self.client.table("boletas")\
                     .select("*, receptores(nombre)")\
                     .order("fecha_emision", desc=True)\
@@ -121,7 +135,6 @@ class SupabaseService:
                 return [{"contraparte_nombre": r.get("receptores", {}).get("nombre", "Sin Nombre"), **r} for r in res.data]
 
             elif rol == "cliente":
-                # El cliente solo ve boletas emitidas a su RUT
                 res = self.client.table("boletas")\
                     .select("*, receptores!inner(rut, nombre)")\
                     .eq("receptores.rut", rut)\

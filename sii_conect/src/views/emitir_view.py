@@ -1,5 +1,5 @@
 import flet as ft
-from src.utils.constants import NAVY, RED_TEXT, CARD_RADIUS, GREY_TEXT
+from src.utils.constants import NAVY, RED_TEXT, CARD_RADIUS, GREY_TEXT, BLUE, TASA_RETENCION_REF
 from src.services.supabase_service import SupabaseService
 
 db_service = SupabaseService()
@@ -8,7 +8,6 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
     usuario_info = state.get("usuario", {})
     rol = str(usuario_info.get("rol", "emisor")).lower()
 
-    # BLOQUEO DE SEGURIDAD: Solo el rol 'emisor' puede emitir
     if rol != "emisor":
         return ft.Container(
             padding=40,
@@ -19,18 +18,29 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                 controls=[
                     ft.Icon(ft.Icons.LOCK, size=50, color=RED_TEXT),
                     ft.Text("Acceso Denegado", size=22, weight=ft.FontWeight.BOLD, color=NAVY),
-                    ft.Text("Tu rol actual no tiene atribución legal para emitir boletas.", color=GREY_TEXT),
+                    ft.Text("Tu rol actual no tiene atribucion legal para emitir boletas.", color=GREY_TEXT),
                     ft.Container(height=15),
                     ft.ElevatedButton("Volver al Inicio", on_click=lambda e: navigate_to("Inicio"))
                 ]
             )
         )
 
-    # Campos del formulario (Corregido: min_lines en lugar de rows)
     rut_receptor = ft.TextField(label="RUT Receptor", hint_text="76.111.222-3")
-    nombre_receptor = ft.TextField(label="Nombre / Razón Social")
-    descripcion_servicio = ft.TextField(label="Descripción del Servicio", multiline=True, min_lines=2)
+    nombre_receptor = ft.TextField(label="Nombre / Razon Social")
+    descripcion_servicio = ft.TextField(label="Descripcion del Servicio", multiline=True, min_lines=2)
     monto_bruto = ft.TextField(label="Monto Bruto ($)", keyboard_type=ft.KeyboardType.NUMBER)
+
+    modo_retencion = ft.RadioGroup(
+        value="1",
+        content=ft.Column(
+            spacing=2,
+            controls=[
+                ft.Radio(value="0", label="Sin retencion (soc. profesionales 1a categoria)"),
+                ft.Radio(value="1", label="Retiene el receptor"),
+                ft.Radio(value="2", label="Retiene el emisor"),
+            ],
+        ),
+    )
     msg_status = ft.Text("", size=12)
 
     def procesar_emision(e):
@@ -43,7 +53,14 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
         try:
             monto_val = float(monto_bruto.value.replace(".", "").replace("$", "").strip())
         except ValueError:
-            msg_status.value = "Ingresa un monto numérico válido."
+            msg_status.value = "Ingresa un monto numerico valido."
+            msg_status.color = RED_TEXT
+            page.update()
+            return
+
+        certificado = db_service.obtener_certificado_activo(usuario_info.get("id"))
+        if not certificado:
+            msg_status.value = "No tienes un certificado digital activo cargado. Sube uno en 'Certificados' antes de emitir."
             msg_status.color = RED_TEXT
             page.update()
             return
@@ -56,16 +73,18 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
 
             receptor_id = receptor.get("id") if isinstance(receptor, dict) else receptor
 
-            retencion = round(monto_val * 0.145)
+            modo = int(modo_retencion.value)
+            retenido = round(monto_val * TASA_RETENCION_REF) if modo != 0 else 0
+
             boleta_payload = {
-                "usuario_id": usuario_info.get("id", "1"),
+                "usuario_id": usuario_info.get("id"),
+                "certificado_id": certificado.get("id"),
                 "receptor_id": receptor_id,
-                "descripcion": descripcion_servicio.value or "Servicios profesionales",
                 "monto_bruto": monto_val,
-                "monto_retencion": retencion,
-                "monto_liquido": monto_val - retencion,
-                "monto_total": monto_val,
-                "estado": "Vigente"
+                "tasa_retencion": TASA_RETENCION_REF if modo != 0 else 0,
+                "monto_retenido": retenido,
+                "monto_liquido": monto_val - retenido,
+                "modo_retencion": modo,
             }
 
             resultado = db_service.guardar_boleta(boleta_payload)
@@ -97,6 +116,8 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                         nombre_receptor,
                         descripcion_servicio,
                         monto_bruto,
+                        ft.Text("Retencion", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
+                        modo_retencion,
                         msg_status,
                         ft.ElevatedButton("Emitir Documento", on_click=procesar_emision, width=400, height=45)
                     ])

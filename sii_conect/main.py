@@ -3,7 +3,7 @@ from src.utils.constants import BG
 from src.views.login_view import build_login
 from src.views.home_view import build_home
 from src.views.emitir_view import build_emitir
-from src.views.documentos_view import build_documentos
+from src.views.mis_boletas_view import build_mis_boletas
 
 def main(page: ft.Page):
     page.title = "SII Connect"
@@ -26,10 +26,9 @@ def main(page: ft.Page):
         elif screen_name == "Emitir" or screen_name == "Emitir BHE":
             page.add(build_emitir(page, state, navigate_to))
         elif screen_name == "Mis BHE":
-            page.add(build_documentos(page, state, navigate_to))
+            page.add(build_mis_boletas(page, state, navigate_to))
         page.update()
 
-    # Pantalla inicial
     navigate_to("Login")
 
 if __name__ == "__main__":

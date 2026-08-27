@@ -10,34 +10,33 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
     usuario_id = usuario_info.get("id")
     rut_usuario = usuario_info.get("rut")
 
-    # Carga de boletas filtradas según el tipo de usuario
     boletas = db_service.obtener_boletas_por_rol(
-        rol=rol, 
-        usuario_id=usuario_id, 
+        rol=rol,
+        usuario_id=usuario_id,
         rut=rut_usuario
     )
 
     rows = []
     for b in boletas:
-        monto = f"${b.get('monto_total', 0):,}".replace(",", ".")
+        monto = f"${b.get('monto_bruto', 0):,.0f}".replace(",", ".")
         rows.append(
             ft.DataRow(
                 cells=[
-                    ft.DataCell(ft.Text(f"#{b.get('numero', '---')}")),
-                    ft.DataCell(ft.Text(b.get("fecha_emision", "---"))),
+                    ft.DataCell(ft.Text(f"#{b.get('folio_sii', '---')}")),
+                    ft.DataCell(ft.Text(str(b.get("fecha_emision", "---")))),
                     ft.DataCell(ft.Text(b.get("contraparte_nombre", "---"))),
                     ft.DataCell(ft.Text(monto)),
-                    ft.DataCell(ft.Text(b.get("estado", "Vigente"))),
+                    ft.DataCell(ft.Text(str(b.get("estado", "pendiente")))),
                 ]
             )
         )
 
     tabla = ft.DataTable(
         columns=[
-            ft.DataColumn(ft.Text("N° Boleta")),
+            ft.DataColumn(ft.Text("N Boleta")),
             ft.DataColumn(ft.Text("Fecha")),
             ft.DataColumn(ft.Text("Emisor / Receptor")),
-            ft.DataColumn(ft.Text("Monto Total")),
+            ft.DataColumn(ft.Text("Monto Bruto")),
             ft.DataColumn(ft.Text("Estado")),
         ],
         rows=rows if rows else [
