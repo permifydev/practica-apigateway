@@ -4,7 +4,7 @@ import os
 MOCK_MODE = True
 
 # Configuración API Gateway
-APIGATEWAY_BASE_URL = os.getenv("APIGATEWAY_BASE_URL", "https://apigateway.cl")
+APIGATEWAY_BASE_URL = os.getenv("APIGATEWAY_BASE_URL", "https://app.apigateway.cl")
 APIGATEWAY_TOKEN = os.getenv("APIGATEWAY_TOKEN", "token_de_prueba")
 
 # Configuración Supabase

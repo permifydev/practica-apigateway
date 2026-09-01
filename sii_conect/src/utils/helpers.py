@@ -27,3 +27,17 @@ def parse_fecha_bhe(texto):
         return datetime.date(int(anio), mes, int(dia))
     except Exception:
         return datetime.date.min
+
+def mapear_estado_boleta(estado_api):
+    """Traduce el estado que devuelve la API Gateway al enum estado_boleta de Supabase."""
+    if not estado_api:
+        return "pendiente"
+    estado_normalizado = str(estado_api).strip().upper()
+    mapa = {
+        "EMITIDA": "pendiente",
+        "PAGADA": "pagada",
+        "VENCIDA": "vencida",
+        "ANULADA": "anulada",
+    }
+    return mapa.get(estado_normalizado, "pendiente")
+    

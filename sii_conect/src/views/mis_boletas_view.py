@@ -16,6 +16,12 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
         rut=rut_usuario
     )
 
+    def abrir_detalle(b):
+        def handler(e):
+            state["boleta_seleccionada"] = b
+            navigate_to("Detalle Boleta")
+        return handler
+
     rows = []
     for b in boletas:
         monto = f"${b.get('monto_bruto', 0):,.0f}".replace(",", ".")
@@ -27,7 +33,8 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
                     ft.DataCell(ft.Text(b.get("contraparte_nombre", "---"))),
                     ft.DataCell(ft.Text(monto)),
                     ft.DataCell(ft.Text(str(b.get("estado", "pendiente")))),
-                ]
+                ],
+                on_select_change=abrir_detalle(b),
             )
         )
 
@@ -50,11 +57,12 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
             controls=[
                 ft.Row(
                     controls=[
-                        ft.IconButton(icon=ft.Icons.ARROW_BACK, on_click=lambda e: navigate_to("Inicio")),
+                        ft.TextButton("Volver", on_click=lambda e: navigate_to("Inicio")),
                         ft.Text(f"Historial de Boletas ({rol.capitalize()})", size=20, weight=ft.FontWeight.BOLD, color=NAVY)
                     ]
                 ),
                 ft.Text(f"Mostrando documentos bajo la regla del rol: {rol}", size=12, color=GREY_TEXT),
+                ft.Text("Toca una fila para ver el detalle.", size=11, color=BLUE),
                 ft.Container(height=10),
                 ft.Container(
                     bgcolor="white", border_radius=CARD_RADIUS, padding=10,
@@ -63,3 +71,4 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
             ]
         )
     )
+

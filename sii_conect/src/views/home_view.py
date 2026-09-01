@@ -2,8 +2,12 @@ import flet as ft
 from src.utils.constants import NAVY, BLUE, GREEN, ORANGE, PURPLE, GREY_TEXT, CARD_RADIUS, MENU_ACTIVE_BG, MENU_HOVER_BG, RED_TEXT
 from src.components.ui import stat_card, quick_action, pending_row
 
+PANTALLAS_DISPONIBLES = [
+    "Inicio", "Emitir BHE", "Mis BHE", "Certificados",
+    "Receptores", "Perfil", "Boletas Recibidas", "Verificar Autenticidad",
+]
+
 def build_home(page: ft.Page, state: dict, navigate_to):
-    # Obtener datos del usuario logueado
     usuario_info = state.get("usuario", {})
     nombre_usuario = usuario_info.get("nombre") or state.get("nombre", "Usuario")
     rol_usuario = str(usuario_info.get("rol", "emisor")).lower()
@@ -27,7 +31,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
     def go_to_screen(nombre):
         def handler(e):
             close_drawer()
-            if nombre in ["Inicio", "Emitir BHE", "Mis BHE"]:
+            if nombre in PANTALLAS_DISPONIBLES:
                 navigate_to(nombre)
             else:
                 page.show_snack_bar(ft.SnackBar(content=ft.Text(f"'{nombre}' en desarrollo")))
@@ -75,7 +79,6 @@ def build_home(page: ft.Page, state: dict, navigate_to):
 
         return item
 
-    # Construcción de ítems de menú según ROL
     menu_controls = [
         ft.Container(height=8),
         menu_section_label("PRINCIPAL"),
@@ -89,17 +92,22 @@ def build_home(page: ft.Page, state: dict, navigate_to):
             menu_section_label("HERRAMIENTAS"),
             menu_item(ft.Icons.SHIELD_OUTLINED, "Certificados"),
             menu_item(ft.Icons.PEOPLE_OUTLINE, "Receptores"),
+            menu_item(ft.Icons.VERIFIED_OUTLINED, "Verificar Autenticidad"),
         ])
     elif rol_usuario == "contador":
         menu_controls.extend([
             menu_item(ft.Icons.DESCRIPTION_OUTLINED, "Mis BHE"),
             menu_section_label("HERRAMIENTAS"),
             menu_item(ft.Icons.PEOPLE_OUTLINE, "Receptores"),
+            menu_item(ft.Icons.VERIFIED_OUTLINED, "Verificar Autenticidad"),
             menu_item(ft.Icons.BAR_CHART, "Auditoría"),
         ])
     elif rol_usuario == "cliente":
         menu_controls.extend([
             menu_item(ft.Icons.INBOX_OUTLINED, "Mis BHE"),
+            menu_item(ft.Icons.FACT_CHECK_OUTLINED, "Boletas Recibidas"),
+            menu_section_label("HERRAMIENTAS"),
+            menu_item(ft.Icons.VERIFIED_OUTLINED, "Verificar Autenticidad"),
         ])
 
     menu_controls.extend([
@@ -211,7 +219,6 @@ def build_home(page: ft.Page, state: dict, navigate_to):
         ),
     )
 
-    # Configurar Widgets del Body dinámicamente según el Rol
     quick_actions_list = []
     
     if rol_usuario == "emisor":
@@ -219,20 +226,19 @@ def build_home(page: ft.Page, state: dict, navigate_to):
         quick_actions_list = [
             quick_action("+ Emitir boleta de honorario", on_click=lambda e: navigate_to("Emitir BHE")),
             quick_action("Ver mis boletas emitidas", on_click=lambda e: navigate_to("Mis BHE")),
-            quick_action("Gestión de Certificado Digital"),
+            quick_action("Gestión de Certificado Digital", on_click=lambda e: navigate_to("Certificados")),
         ]
     elif rol_usuario == "contador":
         subtitulo_rol = "Módulo de supervisión y auditoría de documentos."
         quick_actions_list = [
             quick_action("Revisar todas las BHE", on_click=lambda e: navigate_to("Mis BHE")),
-            quick_action("Exportar registros contables"),
-            quick_action("Verificar receptores activos"),
+            quick_action("Verificar receptores activos", on_click=lambda e: navigate_to("Receptores")),
         ]
     else:  # cliente
         subtitulo_rol = "Portal de consulta de boletas recibidas."
         quick_actions_list = [
             quick_action("Ver boletas de honorarios recibidas", on_click=lambda e: navigate_to("Mis BHE")),
-            quick_action("Descargar certificados de retención"),
+            quick_action("Consultar boletas recibidas en el SII", on_click=lambda e: navigate_to("Boletas Recibidas")),
         ]
 
     body = ft.Container(
@@ -244,13 +250,11 @@ def build_home(page: ft.Page, state: dict, navigate_to):
                 ft.Text(subtitulo_rol, size=13, color=GREY_TEXT),
                 ft.Container(height=4),
                 
-                # Tarjetas de estadísticas adaptadas
                 stat_card("Cobrado este mes", "$1.240.000", GREEN, "+12% vs mes anterior", GREEN),
                 stat_card("Retención acumulada", "$189.100", ORANGE, "14.5% retención actual"),
                 stat_card("Documentos del mes", "5", BLUE, "Boletas procesadas"),
                 ft.Container(height=6),
                 
-                # Bloque de Acciones Rápidas según Permisos
                 ft.Container(
                     bgcolor="white", border_radius=CARD_RADIUS, padding=18, width=380,
                     shadow=ft.BoxShadow(blur_radius=12, color="#12000000", offset=ft.Offset(0, 3)),
@@ -264,7 +268,6 @@ def build_home(page: ft.Page, state: dict, navigate_to):
                 ),
                 ft.Container(height=6),
                 
-                # Lista de Registros Recientes
                 ft.Container(
                     bgcolor="white", border_radius=CARD_RADIUS, padding=18, width=380,
                     shadow=ft.BoxShadow(blur_radius=12, color="#12000000", offset=ft.Offset(0, 3)),
