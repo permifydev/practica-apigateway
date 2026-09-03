@@ -1,9 +1,9 @@
 from datetime import datetime
 import flet as ft
-from src.utils.constants import NAVY, RED_TEXT, GREEN, CARD_RADIUS, GREY_TEXT, TASA_RETENCION_REF
+from src.utils.constants import NAVY, RED_TEXT, GREEN, CARD_RADIUS, GREY_TEXT, tasa_retencion_vigente
 from src.services.supabase_service import SupabaseService
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
-from src.utils.helpers import mapear_estado_boleta
+from src.utils.helpers import mapear_estado_boleta, mensaje_error_api
 
 db_service = SupabaseService()
 api_client = ApiGatewayClient()
@@ -121,12 +121,7 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
             )
 
         except ApiGatewayError as api_err:
-            if api_err.status_code == 401:
-                msg_status.value = "Error 401: Clave SII invalida o rechazada por el SII."
-            elif api_err.status_code == 429:
-                msg_status.value = "Error 429: Superaste el limite de consultas del plan. Intenta mas tarde."
-            else:
-                msg_status.value = f"Error de API Gateway: {api_err}"
+            msg_status.value = mensaje_error_api(api_err)
             msg_status.color = RED_TEXT
             page.update()
             return
@@ -147,7 +142,8 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
             receptor_id = receptor.get("id") if isinstance(receptor, dict) else receptor
 
             modo = int(modo_retencion.value)
-            retenido = round(monto_val * TASA_RETENCION_REF) if modo != 0 else 0
+            tasa_vigente = tasa_retencion_vigente()
+            retenido = round(monto_val * tasa_vigente) if modo != 0 else 0
 
             boleta_payload = {
                 "usuario_id": usuario_info.get("id"),
@@ -158,7 +154,7 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                 "estado": mapear_estado_boleta(resultado_api.get("estado")),
                 "descripcion": descripcion_servicio.value.strip() or "Servicios profesionales",
                 "monto_bruto": monto_val,
-                "tasa_retencion": TASA_RETENCION_REF if modo != 0 else 0,
+                "tasa_retencion": tasa_vigente if modo != 0 else 0,
                 "monto_retenido": retenido,
                 "monto_liquido": monto_val - retenido,
                 "modo_retencion": modo,

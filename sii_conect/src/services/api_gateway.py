@@ -49,6 +49,27 @@ class ApiGatewayClient:
 
         return response
 
+    def _handle_pdf_response(self, response) -> dict:
+        """Los recursos de PDF del SII no siempre devuelven el mismo formato: puede venir
+        el binario directo (Content-Type application/pdf) o un JSON con datos/errores.
+        Normaliza ambos casos a {"pdf_bytes": bytes|None, "data": dict|None} para que
+        la interfaz no tenga que asumir un formato fijo."""
+        if not response.ok:
+            try:
+                payload = self._parse_response(response)
+            except ApiGatewayError:
+                payload = None
+            raise ApiGatewayError(
+                f"Error {response.status_code} al obtener PDF",
+                status_code=response.status_code,
+                payload=payload,
+            )
+
+        content_type = response.headers.get("Content-Type", "")
+        if "application/pdf" in content_type:
+            return {"pdf_bytes": response.content, "data": None}
+        return {"pdf_bytes": None, "data": self._parse_response(response)}
+
     def _log_stats(self, response):
         creditos = response.headers.get("X-Stats-Credits-Remaining")
         restantes_minuto = response.headers.get("X-RateLimit-Remaining")
@@ -97,6 +118,40 @@ class ApiGatewayClient:
         except requests.RequestException as e:
             raise ApiGatewayError(f"Error de conexión con apigateway.cl: {str(e)}")
 
+    def listar_emitidas(self, rut: str, clave: str, emisor: str, periodo: str, pagina: int = 1) -> dict:
+        """Lista boletas emitidas por el RUT emisor en un periodo (YYYYMM o YYYYMMDD).
+        Util para reconciliar el registro local (Supabase) contra el estado oficial en el SII:
+        por ejemplo detectar boletas anuladas directamente en el portal del SII, o folios
+        emitidos que no llegaron a guardarse localmente por un error de red."""
+        if self.mock:
+            return {
+                "boletas": [
+                    {
+                        "folio": 1204, "codigo": "COD-1204", "fecha": "2026-08-20",
+                        "receptor": "76192083-9", "razon_social_receptor": "Consultora Mock SpA",
+                        "monto_bruto": 500000, "monto_retencion": 76250, "monto_liquido": 423750,
+                        "estado": "N",
+                    },
+                ],
+                "pagina": pagina,
+            }
+
+        url = f"{self.base_url}/api/v2/sii/bhe/emitidas/documentos/{emisor}/{periodo}"
+        body = self._auth_block(rut, clave)
+
+        try:
+            response = self._post_con_reintento_sesion(url, body, params={"pagina": pagina})
+            self._log_stats(response)
+            if not response.ok:
+                raise ApiGatewayError(
+                    f"Error {response.status_code} al listar boletas emitidas",
+                    status_code=response.status_code,
+                    payload=self._parse_response(response)
+                )
+            return self._parse_response(response)
+        except requests.RequestException as e:
+            raise ApiGatewayError(f"Error de conexión con apigateway.cl: {str(e)}")
+
     def anular_boleta(self, rut: str, clave: str, emisor: str, folio: str, causa: int = 3) -> dict:
         """Anula una boleta previamente emitida.
         causa: 1 = no se efectuó el pago, 2 = no se prestó el servicio, 3 = error de digitación
@@ -121,12 +176,16 @@ class ApiGatewayClient:
             raise ApiGatewayError(f"Error de conexión con apigateway.cl: {str(e)}")
 
     def descargar_pdf(self, rut: str, clave: str, codigo: str) -> dict:
-        """Obtiene el PDF de una boleta emitida (código asignado por el SII, no el folio)."""
+        """Obtiene el PDF de una boleta emitida (código asignado por el SII, no el folio).
+        Devuelve {"pdf_bytes": bytes|None, "data": dict|None} - ver _handle_pdf_response."""
         if self.mock:
             return {
-                "codigo": codigo,
-                "pdf_url": f"https://apigateway.cl/mock/pdf/{codigo}.pdf",
-                "mensaje": "PDF generado (Modo Mock)"
+                "pdf_bytes": None,
+                "data": {
+                    "codigo": codigo,
+                    "pdf_url": f"https://apigateway.cl/mock/pdf/{codigo}.pdf",
+                    "mensaje": "PDF generado (Modo Mock)"
+                }
             }
 
         url = f"{self.base_url}/api/v2/sii/bhe/emitidas/pdf/{codigo}"
@@ -135,13 +194,7 @@ class ApiGatewayClient:
         try:
             response = self._post_con_reintento_sesion(url, body)
             self._log_stats(response)
-            if not response.ok:
-                raise ApiGatewayError(
-                    f"Error {response.status_code} al obtener PDF",
-                    status_code=response.status_code,
-                    payload=self._parse_response(response)
-                )
-            return self._parse_response(response)
+            return self._handle_pdf_response(response)
         except requests.RequestException as e:
             raise ApiGatewayError(f"Error de conexión con apigateway.cl: {str(e)}")
 
@@ -210,12 +263,16 @@ class ApiGatewayClient:
             raise ApiGatewayError(f"Error de conexión con apigateway.cl: {str(e)}")
 
     def descargar_pdf_recibida(self, rut: str, clave: str, codigo: str) -> dict:
-        """Obtiene el PDF de una boleta recibida (código, no folio)."""
+        """Obtiene el PDF de una boleta recibida (código, no folio).
+        Devuelve {"pdf_bytes": bytes|None, "data": dict|None} - ver _handle_pdf_response."""
         if self.mock:
             return {
-                "codigo": codigo,
-                "pdf_url": f"https://apigateway.cl/mock/pdf/recibida/{codigo}.pdf",
-                "mensaje": "PDF generado (Modo Mock)"
+                "pdf_bytes": None,
+                "data": {
+                    "codigo": codigo,
+                    "pdf_url": f"https://apigateway.cl/mock/pdf/recibida/{codigo}.pdf",
+                    "mensaje": "PDF generado (Modo Mock)"
+                }
             }
 
         url = f"{self.base_url}/api/v2/sii/bhe/recibidas/pdf/{codigo}"
@@ -224,13 +281,7 @@ class ApiGatewayClient:
         try:
             response = self._post_con_reintento_sesion(url, body)
             self._log_stats(response)
-            if not response.ok:
-                raise ApiGatewayError(
-                    f"Error {response.status_code} al obtener PDF de boleta recibida",
-                    status_code=response.status_code,
-                    payload=self._parse_response(response)
-                )
-            return self._parse_response(response)
+            return self._handle_pdf_response(response)
         except requests.RequestException as e:
             raise ApiGatewayError(f"Error de conexión con apigateway.cl: {str(e)}")
 

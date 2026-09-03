@@ -2,7 +2,7 @@ import flet as ft
 from datetime import date
 from src.utils.constants import NAVY, RED_TEXT, GREEN, GREY_TEXT, CARD_RADIUS
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
-from src.utils.helpers import formato_clp
+from src.utils.helpers import formato_clp, abrir_pdf_resultado, mensaje_error_api
 
 api_client = ApiGatewayClient()
 
@@ -53,7 +53,7 @@ def build_boletas_recibidas(page: ft.Page, state: dict, navigate_to):
             content=ft.Row([ft.Radio(value=k, label=v) for k, v in CAUSAS_OBSERVACION.items()]),
         )
 
-        def accion_pdf(e):
+        async def accion_pdf(e):
             if not clave_actual():
                 msg_status.value = "Ingresa tu Clave SII para continuar."
                 msg_status.color = RED_TEXT
@@ -63,10 +63,10 @@ def build_boletas_recibidas(page: ft.Page, state: dict, navigate_to):
                 resultado = api_client.descargar_pdf_recibida(
                     rut=rut_receptor, clave=clave_actual(), codigo=str(b.get("codigo", b.get("folio")))
                 )
-                msg_status.value = f"PDF disponible: {resultado.get('pdf_url', 'sin url')}"
+                msg_status.value = await abrir_pdf_resultado(page, resultado)
                 msg_status.color = GREEN
             except ApiGatewayError as api_err:
-                msg_status.value = f"Error al obtener PDF: {api_err}"
+                msg_status.value = mensaje_error_api(api_err)
                 msg_status.color = RED_TEXT
             page.update()
 
@@ -85,7 +85,7 @@ def build_boletas_recibidas(page: ft.Page, state: dict, navigate_to):
                 msg_status.value = resultado.get("mensaje", "Boleta observada.")
                 msg_status.color = GREEN
             except ApiGatewayError as api_err:
-                msg_status.value = f"Error al observar: {api_err}"
+                msg_status.value = mensaje_error_api(api_err)
                 msg_status.color = RED_TEXT
             page.update()
 
@@ -145,7 +145,7 @@ def build_boletas_recibidas(page: ft.Page, state: dict, navigate_to):
             msg_status.value = f"{len(boletas)} boleta(s) encontrada(s)."
             msg_status.color = GREEN
         except ApiGatewayError as api_err:
-            msg_status.value = f"Error al consultar: {api_err}"
+            msg_status.value = mensaje_error_api(api_err)
             msg_status.color = RED_TEXT
         page.update()
 

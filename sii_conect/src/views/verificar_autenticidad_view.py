@@ -1,6 +1,7 @@
 import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, GREY_TEXT, CARD_RADIUS
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
+from src.utils.helpers import mensaje_error_api
 
 api_client = ApiGatewayClient()
 
@@ -89,7 +90,7 @@ def build_verificar_autenticidad(page: ft.Page, state: dict, navigate_to):
                 msg_status.value = "El documento no pudo ser verificado con esos datos."
                 msg_status.color = RED_TEXT
         except ApiGatewayError as api_err:
-            msg_status.value = f"Error al verificar: {api_err}"
+            msg_status.value = mensaje_error_api(api_err)
             msg_status.color = RED_TEXT
         page.update()
 

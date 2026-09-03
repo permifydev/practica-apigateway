@@ -2,7 +2,7 @@ import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, GREY_TEXT, CARD_RADIUS
 from src.services.supabase_service import SupabaseService
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
-from src.utils.helpers import mapear_estado_boleta
+from src.utils.helpers import mapear_estado_boleta, abrir_pdf_resultado, mensaje_error_api
 
 db_service = SupabaseService()
 api_client = ApiGatewayClient()
@@ -114,19 +114,19 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
             cambiar_clave_btn.visible = True
         return True
 
-    def accion_descargar_pdf(e):
+    async def accion_descargar_pdf(e):
         if not validar_clave():
             return
         try:
             resultado = api_client.descargar_pdf(rut=rut_emisor, clave=clave_actual(), codigo=codigo_sii)
-            msg_status.value = f"PDF disponible: {resultado.get('pdf_url', 'sin url')}"
+            msg_status.value = await abrir_pdf_resultado(page, resultado)
             msg_status.color = GREEN
             db_service.registrar_evento_historial(
                 boleta_id=boleta.get("id"), usuario_id=usuario_info.get("id"),
                 tipo_evento="consulta_sii", detalle="Descarga de PDF"
             )
         except ApiGatewayError as api_err:
-            msg_status.value = f"Error al obtener PDF: {api_err}"
+            msg_status.value = mensaje_error_api(api_err)
             msg_status.color = RED_TEXT
         page.update()
 
@@ -147,7 +147,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
                 tipo_evento="consulta_sii", detalle="Envio por email"
             )
         except ApiGatewayError as api_err:
-            msg_status.value = f"Error al enviar email: {api_err}"
+            msg_status.value = mensaje_error_api(api_err)
             msg_status.color = RED_TEXT
         page.update()
 
@@ -183,7 +183,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
             opciones_anulacion.visible = False
             toggle_anular_btn.text = "Anular Boleta"
         except ApiGatewayError as api_err:
-            msg_status.value = f"Error al anular: {api_err}"
+            msg_status.value = mensaje_error_api(api_err)
             msg_status.color = RED_TEXT
         page.update()
 
