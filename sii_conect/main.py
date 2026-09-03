@@ -1,4 +1,10 @@
 import flet as ft
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
+
+
 from src.utils.constants import BG
 from src.views.login_view import build_login
 from src.views.home_view import build_home
