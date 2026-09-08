@@ -8,6 +8,33 @@ MESES_ES = {
     "jul": 7, "ago": 8, "sep": 9, "oct": 10, "nov": 11, "dic": 12,
 }
 
+def validar_rut(rut: str) -> bool:
+    """Valida formato y digito verificador de un RUT chileno (ej. 12.345.678-9 o 12345678-9)."""
+    if not rut:
+        return False
+    rut_limpio = re.sub(r"[.\s]", "", rut).upper()
+    if "-" not in rut_limpio:
+        return False
+    cuerpo, dv = rut_limpio.rsplit("-", 1)
+    if not cuerpo.isdigit() or not (1 <= len(cuerpo) <= 8):
+        return False
+
+    suma = 0
+    multiplo = 2
+    for digito in reversed(cuerpo):
+        suma += int(digito) * multiplo
+        multiplo = multiplo + 1 if multiplo < 7 else 2
+
+    resto = 11 - (suma % 11)
+    dv_esperado = {11: "0", 10: "K"}.get(resto, str(resto))
+    return dv == dv_esperado
+
+
+def formato_rut(rut: str) -> str:
+    """Normaliza un RUT a formato sin puntos, con guion (ej. 12345678-9), para mostrar errores consistentes."""
+    return re.sub(r"[.\s]", "", rut).upper() if rut else ""
+
+
 def parse_monto(texto):
     """Convierte cualquier entrada a entero descartando caracteres no numéricos."""
     if not texto:

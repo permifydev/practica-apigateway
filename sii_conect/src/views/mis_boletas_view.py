@@ -126,7 +126,10 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
 
     return ft.Container(
         padding=20,
+        expand=True,
         content=ft.Column(
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
             controls=[
                 ft.Row(
                     controls=[
@@ -141,7 +144,7 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
                 ft.Container(height=10),
                 ft.Container(
                     bgcolor="white", border_radius=CARD_RADIUS, padding=10,
-                    content=ft.Column([tabla], scroll=ft.ScrollMode.AUTO)
+                    content=ft.Row([tabla], scroll=ft.ScrollMode.AUTO)
                 )
             ]
         )

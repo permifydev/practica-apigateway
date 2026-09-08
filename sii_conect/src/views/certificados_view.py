@@ -88,7 +88,10 @@ def build_certificados(page: ft.Page, state: dict, navigate_to):
 
     return ft.Container(
         padding=20,
+        expand=True,
         content=ft.Column(
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
             controls=[
                 ft.Row([
                     ft.TextButton("Volver", on_click=lambda e: navigate_to("Inicio")),

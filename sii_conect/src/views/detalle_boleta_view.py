@@ -33,7 +33,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
         )
 
     folio = boleta.get("folio_sii", "---")
-    codigo_sii = boleta.get("codigo_sii") or str(folio)
+    codigo_sii = (boleta.get("respuesta_sii") or {}).get("codigo") or str(folio)
     fecha = boleta.get("fecha_emision", "---")
     contraparte = boleta.get("contraparte_nombre", "---")
     monto_bruto = boleta.get("monto_bruto", 0)
@@ -191,7 +191,10 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
 
     return ft.Container(
         padding=20,
+        expand=True,
         content=ft.Column(
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
             controls=[
                 ft.Row([
                     ft.TextButton("Volver", on_click=lambda e: navigate_to("Mis BHE")),

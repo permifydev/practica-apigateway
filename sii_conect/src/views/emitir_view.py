@@ -3,7 +3,7 @@ import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, CARD_RADIUS, GREY_TEXT, tasa_retencion_vigente
 from src.services.supabase_service import SupabaseService
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
-from src.utils.helpers import mapear_estado_boleta, mensaje_error_api
+from src.utils.helpers import mapear_estado_boleta, mensaje_error_api, validar_rut
 
 db_service = SupabaseService()
 api_client = ApiGatewayClient()
@@ -53,6 +53,12 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
             )
         )
 
+    rut_emisor_display = ft.TextField(
+        label="RUT Emisor",
+        value="",
+        hint_text="Ingrese RUT",
+        border_color="#DDE1E6",
+    )
     clave_sii = ft.TextField(label="Clave SII (tuya, no se guarda)", password=True, can_reveal_password=True)
     rut_receptor = ft.TextField(label="RUT Receptor", hint_text="76.111.222-3")
     nombre_receptor = ft.TextField(label="Nombre / Razon Social")
@@ -85,9 +91,21 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
             page.update()
             return
 
-        rut_emisor = usuario_info.get("rut")
+        rut_emisor = rut_emisor_display.value.strip() if rut_emisor_display.value else ""
         if not rut_emisor:
-            msg_status.value = "Tu perfil no tiene un RUT registrado. Contacta al administrador."
+            msg_status.value = "Ingrese RUT"
+            msg_status.color = RED_TEXT
+            page.update()
+            return
+
+        if not validar_rut(rut_emisor):
+            msg_status.value = "El RUT Emisor no es válido (revisa el dígito verificador)."
+            msg_status.color = RED_TEXT
+            page.update()
+            return
+
+        if not validar_rut(rut_receptor.value.strip()):
+            msg_status.value = "El RUT Receptor no es válido (revisa el dígito verificador)."
             msg_status.color = RED_TEXT
             page.update()
             return
@@ -136,7 +154,8 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
         try:
             receptor = db_service.obtener_o_crear_receptor(
                 rut=rut_receptor.value.strip(),
-                nombre=nombre_receptor.value.strip() or "Receptor Sin Nombre"
+                nombre=nombre_receptor.value.strip() or "Receptor Sin Nombre",
+                usuario_id=usuario_info.get("id"),
             )
 
             receptor_id = receptor.get("id") if isinstance(receptor, dict) else receptor
@@ -150,7 +169,6 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                 "certificado_id": certificado.get("id") if certificado else None,
                 "receptor_id": receptor_id,
                 "folio_sii": str(resultado_api.get("folio", "")),
-                "codigo_sii": str(resultado_api.get("codigo", "")),
                 "estado": mapear_estado_boleta(resultado_api.get("estado")),
                 "descripcion": descripcion_servicio.value.strip() or "Servicios profesionales",
                 "monto_bruto": monto_val,
@@ -159,6 +177,13 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                 "monto_liquido": monto_val - retenido,
                 "modo_retencion": modo,
                 "fecha_emision": resultado_api.get("fecha_emision") or None,
+                # 'codigo_sii' no es una columna real de 'boletas'; el codigo de verificacion del
+                # SII se guarda dentro del jsonb 'respuesta_sii' junto con el resto de la respuesta cruda.
+                "respuesta_sii": {
+                    "folio": resultado_api.get("folio"),
+                    "codigo": resultado_api.get("codigo"),
+                    "estado": resultado_api.get("estado"),
+                },
             }
 
             resultado_db = db_service.guardar_boleta(
@@ -167,7 +192,8 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
             )
 
             if resultado_db is not None:
-                navigate_to("Mis BHE")
+                state["boleta_seleccionada"] = resultado_db
+                navigate_to("Detalle Boleta")
             else:
                 msg_status.value = "La boleta se emitio en el SII pero fallo el registro local. Anota el folio: " + str(resultado_api.get("folio"))
                 msg_status.color = RED_TEXT
@@ -180,7 +206,10 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
 
     return ft.Container(
         padding=20,
+        expand=True,
         content=ft.Column(
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
             controls=[
                 ft.Row([
                     ft.TextButton("Volver", on_click=lambda e: navigate_to("Inicio")),
@@ -189,10 +218,14 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                 ft.Container(
                     bgcolor="white", border_radius=CARD_RADIUS, padding=20, width=450,
                     content=ft.Column([
+                        ft.Text("Emisor", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
+                        rut_emisor_display,
                         clave_sii,
                         ft.Divider(height=1, color="#EEF0F3"),
+                        ft.Text("Receptor", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
                         rut_receptor,
                         nombre_receptor,
+                        ft.Divider(height=1, color="#EEF0F3"),
                         descripcion_servicio,
                         monto_bruto,
                         ft.Text("Retencion", size=13, weight=ft.FontWeight.BOLD, color=NAVY),

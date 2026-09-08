@@ -1,9 +1,12 @@
 import flet as ft
 import os
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
 from src.utils.constants import BG
 from src.views.login_view import build_login
@@ -27,7 +30,7 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.LIGHT
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
 
-    state = {"nombre": "María", "folio_boleta": 1204}
+    state = {"nombre": "Priscila", "folio_boleta": 1204}
 
     def navigate_to(screen_name):
         page.controls.clear()
@@ -53,6 +56,8 @@ def main(page: ft.Page):
             page.add(build_perfil(page, state, navigate_to))
         page.update()
 
+    # El login real de la app valida contra la tabla 'perfiles' (ver SupabaseService.validar_usuario
+    # en login_view.py), no contra Supabase Auth. Por eso la app siempre debe arrancar en Login.
     navigate_to("Login")
 
 if __name__ == "__main__":

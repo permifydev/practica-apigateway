@@ -5,15 +5,19 @@ from src.services.supabase_service import SupabaseService
 db_service = SupabaseService()
 
 def build_login(page: ft.Page, state: dict, navigate_to):
+    def ir_a_password(e):
+        pass_field.focus()
+
     email_field = ft.TextField(
-        label="Correo electrónico o RUT",
-        hint_text="tu@empresa.cl o 11.111.111-1",
+        label="Correo electrónico",
+        hint_text="tu@empresa.cl",
         color=NAVY,
         label_style=ft.TextStyle(color=GREY_TEXT),
         border_radius=10,
         border_color="#D8DCE3",
         bgcolor="white",
         height=52,
+        on_submit=ir_a_password,
     )
     pass_field = ft.TextField(
         label="Contraseña",
@@ -35,29 +39,51 @@ def build_login(page: ft.Page, state: dict, navigate_to):
         pass_input = (pass_field.value or "").strip()
 
         if not user_input or not pass_input:
-            error_text.value = "Ingresa correo/RUT y contraseña para continuar"
+            error_text.value = "Ingresa correo y contraseña para continuar"
             page.update()
             return
 
-        # Validar si el usuario existe en la tabla perfiles
-        usuario_db = db_service.validar_usuario(user_input)
+        if db_service.client:
+            # Modo real: autentica contra Supabase Auth y luego trae el perfil propio (RLS: auth.uid()).
+            auth_user = db_service.iniciar_sesion(user_input, pass_input)
+            if not auth_user:
+                error_text.value = "Correo o contraseña incorrectos"
+                page.update()
+                return
 
-        if usuario_db:
-            state["logged_in"] = True
-            state["usuario"] = usuario_db  # Mantiene dict completo con ID, Nombre, RUT y Rol
-            state["nombre"] = usuario_db.get("nombre", "Usuario")
-            error_text.value = ""
-            navigate_to("Inicio")
+            usuario_db = db_service.obtener_perfil_propio(auth_user["id"])
+            if not usuario_db:
+                error_text.value = (
+                    "Tu cuenta existe pero no tiene un perfil asociado en 'perfiles'. "
+                    "Contacta al administrador."
+                )
+                page.update()
+                return
         else:
-            error_text.value = "Acceso denegado: Usuario no registrado en el sistema"
-            page.update()
+            # Modo simulacion (sin credenciales reales de Supabase): no valida password.
+            usuario_db = db_service.validar_usuario(user_input)
+            if not usuario_db:
+                error_text.value = "Acceso denegado: Usuario no registrado en el sistema"
+                page.update()
+                return
+
+        state["logged_in"] = True
+        state["usuario"] = usuario_db  # Mantiene dict completo con ID, Nombre, RUT y Rol
+        state["nombre"] = usuario_db.get("nombre", "Usuario")
+        error_text.value = ""
+        navigate_to("Inicio")
+
+    pass_field.on_submit = do_login
 
     return ft.Container(
         width=420,
         padding=24,
+        expand=True,
         content=ft.Column(
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=0,
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
             controls=[
                 ft.Container(height=60),
                 ft.Row(

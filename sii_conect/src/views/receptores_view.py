@@ -1,6 +1,7 @@
 import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, GREY_TEXT, CARD_RADIUS
 from src.services.supabase_service import SupabaseService
+from src.utils.helpers import validar_rut
 
 db_service = SupabaseService()
 
@@ -81,13 +82,20 @@ def build_receptores(page: ft.Page, state: dict, navigate_to):
             page.update()
             return
 
+        if not editando_id["value"] and not validar_rut(rut_field.value.strip()):
+            msg_status.value = "El RUT ingresado no es válido (revisa el dígito verificador)."
+            msg_status.color = RED_TEXT
+            page.update()
+            return
+
         if editando_id["value"]:
             resultado = db_service.actualizar_receptor(
                 editando_id["value"], nombre_field.value.strip(), email_field.value.strip()
             )
         else:
             resultado = db_service.crear_receptor(
-                rut_field.value.strip(), nombre_field.value.strip(), email_field.value.strip()
+                rut_field.value.strip(), nombre_field.value.strip(), email_field.value.strip(),
+                usuario_id=usuario_info.get("id"),
             )
 
         if resultado is not None:
@@ -109,7 +117,9 @@ def build_receptores(page: ft.Page, state: dict, navigate_to):
 
     return ft.Container(
         padding=20,
+        expand=True,
         content=ft.Column(
+            expand=True,
             scroll=ft.ScrollMode.AUTO,
             controls=[
                 ft.Row([

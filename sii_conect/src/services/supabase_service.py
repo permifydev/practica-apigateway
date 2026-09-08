@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, date
-from supabase import create_client, Client
-from src.config import SUPABASE_URL, SUPABASE_KEY
+from supabase import Client
+from src.config import supabase as _shared_client
 
 logger = logging.getLogger(__name__)
 
@@ -24,23 +24,62 @@ class SupabaseService:
         {"id": "mock-r1", "rut": "76.111.222-3", "nombre": "Tech Solutions SPA", "email": "contacto@tech.cl"},
     ]
 
-    def __init__(self, url: str = SUPABASE_URL, key: str = SUPABASE_KEY):
-        self.url = url
-        self.key = key
-        self.client: Client | None = None
-        self._conectar()
+    def __init__(self):
+        # Un solo cliente compartido para toda la app (definido una vez en config.py).
+        # Asi la sesion de Auth iniciada en login_view.py sigue viva para el resto de las vistas.
+        self.client: Client | None = _shared_client
+        if self.client:
+            logger.info("[Supabase] Usando cliente compartido (definido en src.config)")
 
-    def _conectar(self):
+    def iniciar_sesion(self, email: str, password: str) -> dict | None:
+        """Inicia sesion real contra Supabase Auth. Devuelve {'id', 'email'} del usuario autenticado o None si fallan las credenciales."""
+        if not self.client:
+            return None
         try:
-            if self.url and self.key and "tu-proyecto" not in self.url:
-                self.client = create_client(self.url, self.key)
-            else:
-                logger.warning("Supabase en modo simulacion (credenciales pendientes).")
+            res = self.client.auth.sign_in_with_password({"email": email.strip().lower(), "password": password})
+            if res and res.user:
+                logger.info(f"[Supabase Auth] Sesion iniciada: {res.user.email}")
+                return {"id": res.user.id, "email": res.user.email}
+            return None
         except Exception as e:
-            logger.error(f"Error al conectar con Supabase: {e}")
+            logger.warning(f"[Supabase Auth] Login rechazado para '{email}': {e}")
+            return None
+
+    def cerrar_sesion(self):
+        if self.client:
+            try:
+                self.client.auth.sign_out()
+            except Exception as e:
+                logger.error(f"Error al cerrar sesion: {e}")
+
+    def obtener_perfil_propio(self, usuario_id: str) -> dict | None:
+        """Trae el perfil del usuario ya autenticado. Requiere sesion activa (RLS: id = auth.uid())."""
+        if not self.client:
+            return None
+        try:
+            res = self.client.table("perfiles")\
+                .select("id, nombre_completo, rut, rol, email")\
+                .eq("id", usuario_id)\
+                .execute()
+            if res.data:
+                usr = res.data[0]
+                return {
+                    "id": usr["id"],
+                    "nombre": usr.get("nombre_completo", "Usuario"),
+                    "rut": usr.get("rut"),
+                    "rol": str(usr.get("rol", "usuario")).lower(),
+                    "email": usr.get("email"),
+                }
+            logger.warning(f"[Supabase REAL] Sesion valida pero sin fila en 'perfiles' para id={usuario_id}")
+            return None
+        except Exception as e:
+            logger.error(f"Error al obtener perfil propio: {e}")
+            return None
 
     def validar_usuario(self, identificador: str) -> dict | None:
-        """Valida si el email o RUT existe en la tabla 'perfiles' y retorna su rol."""
+        """SOLO modo simulacion (sin credenciales de Supabase reales). Con Supabase real, usa
+        iniciar_sesion() + obtener_perfil_propio(): las policies RLS de 'perfiles' exigen una
+        sesion 'authenticated', asi que una consulta anonima aqui siempre devolveria 0 filas."""
         if not self.client:
             usuarios_mock = {
                 "contador@test.com": {"id": "1", "nombre": "Contador Test", "rut": "11.111.111-1", "rol": "contador", "email": "contador@test.com"},
@@ -54,25 +93,11 @@ class SupabaseService:
             }
             return usuarios_mock.get(identificador.strip().lower())
 
-        try:
-            res = self.client.table("perfiles")\
-                .select("id, nombre_completo, rut, rol, email")\
-                .or_(f"email.eq.{identificador},rut.eq.{identificador}")\
-                .execute()
-
-            if res.data:
-                usr = res.data[0]
-                return {
-                    "id": usr["id"],
-                    "nombre": usr.get("nombre_completo", "Usuario"),
-                    "rut": usr.get("rut"),
-                    "rol": str(usr.get("rol", "emisor")).lower(),
-                    "email": usr.get("email"),
-                }
-            return None
-        except Exception as e:
-            logger.error(f"Error al consultar perfiles: {e}")
-            return None
+        logger.warning(
+            "validar_usuario() fue llamado con un cliente Supabase real: esta funcion ya no es "
+            "confiable para login real (RLS bloquea consultas anonimas). Usa iniciar_sesion()."
+        )
+        return None
 
     def actualizar_perfil(self, usuario_id: str, email: str) -> dict | None:
         """Actualiza el correo de contacto del perfil. RUT y rol no son editables desde la app."""
@@ -82,12 +107,14 @@ class SupabaseService:
 
         try:
             response = self.client.table("perfiles").update({"email": email}).eq("id", usuario_id).execute()
-            return response.data
+            # response.data es una lista; si viene vacia (ID inexistente o bloqueado por RLS)
+            # devolvemos None para que la vista pueda distinguirlo de un update real.
+            return response.data[0] if response.data else None
         except Exception as e:
             logger.error(f"Error al actualizar perfil: {e}")
             return None
 
-    def obtener_o_crear_receptor(self, rut: str, nombre: str, email: str = "") -> dict | str | None:
+    def obtener_o_crear_receptor(self, rut: str, nombre: str, email: str = "", usuario_id: str | None = None) -> dict | str | None:
         """Busca un receptor por RUT o lo crea si no existe."""
         if not self.client:
             return {"id": "mock-uuid-receptor", "nombre": nombre, "rut": rut}
@@ -100,7 +127,8 @@ class SupabaseService:
             nuevo = self.client.table("receptores").insert({
                 "rut": rut,
                 "nombre": nombre,
-                "email": email
+                "email": email,
+                "usuario_id": usuario_id,  # requerido por la policy RLS: auth.uid() = usuario_id
             }).execute()
             return nuevo.data[0] if nuevo.data else None
         except Exception as e:
@@ -119,7 +147,7 @@ class SupabaseService:
             logger.error(f"Error al listar receptores: {e}")
             return []
 
-    def crear_receptor(self, rut: str, nombre: str, email: str = "") -> dict | None:
+    def crear_receptor(self, rut: str, nombre: str, email: str = "", usuario_id: str | None = None) -> dict | None:
         """Crea un receptor nuevo (sin buscar duplicados primero, a diferencia de obtener_o_crear_receptor)."""
         if not self.client:
             nuevo = {"id": f"mock-r{len(SupabaseService._mock_receptores) + 1}", "rut": rut, "nombre": nombre, "email": email}
@@ -127,7 +155,7 @@ class SupabaseService:
             return nuevo
 
         try:
-            response = self.client.table("receptores").insert({"rut": rut, "nombre": nombre, "email": email}).execute()
+            response = self.client.table("receptores").insert({"rut": rut, "nombre": nombre, "email": email, "usuario_id": usuario_id}).execute()
             return response.data[0] if response.data else None
         except Exception as e:
             logger.error(f"Error al crear receptor: {e}")
@@ -145,7 +173,7 @@ class SupabaseService:
 
         try:
             response = self.client.table("receptores").update({"nombre": nombre, "email": email}).eq("id", receptor_id).execute()
-            return response.data
+            return response.data[0] if response.data else None
         except Exception as e:
             logger.error(f"Error al actualizar receptor: {e}")
             return None
@@ -229,7 +257,7 @@ class SupabaseService:
 
         try:
             response = self.client.table("boletas").insert(boleta_data).execute()
-            return response.data
+            return response.data[0] if response.data else None
         except Exception as e:
             logger.error(f"Error al insertar boleta: {e}")
             return None
@@ -246,7 +274,7 @@ class SupabaseService:
 
         try:
             response = self.client.table("boletas").update({"estado": nuevo_estado}).eq("id", boleta_id).execute()
-            return response.data
+            return response.data[0] if response.data else None
         except Exception as e:
             logger.error(f"Error al actualizar estado de boleta: {e}")
             return None

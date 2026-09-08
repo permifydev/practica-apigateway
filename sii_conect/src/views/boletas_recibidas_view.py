@@ -151,7 +151,9 @@ def build_boletas_recibidas(page: ft.Page, state: dict, navigate_to):
 
     return ft.Container(
         padding=20,
+        expand=True,
         content=ft.Column(
+            expand=True,
             scroll=ft.ScrollMode.AUTO,
             controls=[
                 ft.Row([
