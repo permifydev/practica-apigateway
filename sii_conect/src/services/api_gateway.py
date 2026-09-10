@@ -80,6 +80,39 @@ class ApiGatewayClient:
 
     # ---------------- BHE Emitidas ----------------
 
+    def _normalizar_respuesta_emision(self, data: dict) -> dict:
+        """La API real devuelve la boleta en el formato oficial del SII, anidado en
+        Encabezado/IdDoc/Detalle (confirmado con la prueba en Postman). Esta funcion
+        lo aplana a las mismas claves que ya usa el resto de la app en modo mock
+        (folio, estado, fecha_emision, etc.) para no tener que tocar las vistas.
+
+        OJO: 'codigo' se usa despues para pedir el PDF (descargar_pdf) y enviar el
+        email (enviar_email); en la respuesta real no vino un campo 'codigo' plano,
+        se esta usando CodigoInferior como mejor candidato. Hay que confirmar con la
+        documentacion o con una prueba real de descargar_pdf/enviar_email si es el
+        valor correcto, o si en realidad corresponde a CodigoBarras.
+        """
+        encabezado = data.get("Encabezado", {}) or {}
+        id_doc = encabezado.get("IdDoc", {}) or {}
+        emisor = encabezado.get("Emisor", {}) or {}
+        receptor = encabezado.get("Receptor", {}) or {}
+        detalle = data.get("Detalle", []) or []
+        monto_bruto = sum(item.get("MontoItem", 0) for item in detalle)
+
+        return {
+            "folio": id_doc.get("Folio"),
+            "codigo": id_doc.get("CodigoInferior") or id_doc.get("CodigoBarras"),
+            "estado": "EMITIDA",  # la API real no devuelve un campo de estado al emitir;
+                                  # si la respuesta llego OK (sin excepcion), se asume emitida
+            "fecha_emision": id_doc.get("FchEmis"),
+            "rut_emisor": emisor.get("RUTEmisor"),
+            "rut_receptor": receptor.get("RUTRecep"),
+            "monto_bruto": monto_bruto,
+            "pdf_url": None,  # no viene en la respuesta de emision, se pide aparte con descargar_pdf
+            "codigo_verificacion": id_doc.get("CodigoBarras"),
+            "raw": data,  # respuesta completa del SII por si se necesita mas adelante
+        }
+
     def emitir_boleta(self, rut: str, clave: str, boleta_payload: dict) -> dict:
         """Emite boleta. En modo simulación (mock=True), genera un folio ficticio sin llamar a la red."""
         if self.mock:
@@ -114,9 +147,38 @@ class ApiGatewayClient:
                     payload=self._parse_response(response)
                 )
             res_json = self._parse_response(response)
-            return res_json.get("data", res_json)
+            data = res_json.get("data", res_json)
+            return self._normalizar_respuesta_emision(data)
         except requests.RequestException as e:
             raise ApiGatewayError(f"Error de conexión con apigateway.cl: {str(e)}")
+
+    def _normalizar_respuesta_listado(self, data: dict, pagina_solicitada: int) -> dict:
+        """La API real devuelve las boletas dentro de 'data' con nombres de campo propios
+        del SII (numero, total_honorarios) en vez de los que usa el resto de la app
+        (folio, monto_bruto), confirmado con la prueba real en Postman. Se agregan
+        alias con los nombres esperados sin perder los campos originales, para no
+        romper nada que ya lea los nombres crudos del SII (ej. 'estado': 'S').
+
+        OJO: 'n_paginas' en la respuesta real es el TOTAL de paginas disponibles, no la
+        pagina actual (a diferencia del mock, que devolvia 'pagina' como la pagina
+        pedida). Se devuelven ambos valores por separado para no confundirlos.
+        """
+        boletas_raw = data.get("boletas", []) or []
+        boletas = [
+            {
+                **b,
+                "folio": b.get("numero"),
+                "monto_bruto": b.get("total_honorarios"),
+            }
+            for b in boletas_raw
+        ]
+        return {
+            "boletas": boletas,
+            "n_boletas": data.get("n_boletas"),
+            "n_paginas": data.get("n_paginas"),
+            "pagina": pagina_solicitada,
+            "raw": data,
+        }
 
     def listar_emitidas(self, rut: str, clave: str, emisor: str, periodo: str, pagina: int = 1) -> dict:
         """Lista boletas emitidas por el RUT emisor en un periodo (YYYYMM o YYYYMMDD).
@@ -148,9 +210,32 @@ class ApiGatewayClient:
                     status_code=response.status_code,
                     payload=self._parse_response(response)
                 )
-            return self._parse_response(response)
+            res_json = self._parse_response(response)
+            data = res_json.get("data", res_json)
+            return self._normalizar_respuesta_listado(data, pagina_solicitada=pagina)
         except requests.RequestException as e:
             raise ApiGatewayError(f"Error de conexión con apigateway.cl: {str(e)}")
+
+    def _normalizar_respuesta_anulacion(self, data: dict, folio: str) -> dict:
+        """La API real no devuelve un campo 'estado' plano ni 'folio' al anular (confirmado
+        con la prueba real en Postman): trae 'boleta_anulada' con un codigo de SII
+        ('E' en la prueba realizada) y 'fecha_cgi' como fecha del tramite. Se traduce a
+        las mismas claves que ya usa el resto de la app (estado, folio, mensaje).
+
+        OJO: solo se confirmo el codigo 'E' (anulacion exitosa). Si en el futuro el SII
+        devuelve otro codigo en 'boleta_anulada' para casos borde, hay que agregarlo al
+        mapa de abajo; por ahora, cualquier respuesta con response.ok=True que no sea 'E'
+        se sigue marcando como ANULADA (la llamada ya se valido como exitosa antes de
+        llegar aca) pero queda registrada en 'raw' por si hay que revisarla.
+        """
+        codigo_anulacion = data.get("boleta_anulada")
+        return {
+            "folio": folio,
+            "estado": "ANULADA",
+            "mensaje": f"Boleta anulada correctamente (SII, {data.get('fecha_cgi', 'fecha no informada')})",
+            "codigo_anulacion_sii": codigo_anulacion,
+            "raw": data,
+        }
 
     def anular_boleta(self, rut: str, clave: str, emisor: str, folio: str, causa: int = 3) -> dict:
         """Anula una boleta previamente emitida.
@@ -171,7 +256,9 @@ class ApiGatewayClient:
                     status_code=response.status_code,
                     payload=self._parse_response(response)
                 )
-            return self._parse_response(response)
+            res_json = self._parse_response(response)
+            data = res_json.get("data", res_json)
+            return self._normalizar_respuesta_anulacion(data, folio=folio)
         except requests.RequestException as e:
             raise ApiGatewayError(f"Error de conexión con apigateway.cl: {str(e)}")
 

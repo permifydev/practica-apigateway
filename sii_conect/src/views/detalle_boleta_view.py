@@ -40,7 +40,12 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
     monto_liquido = boleta.get("monto_liquido", monto_bruto)
     estado_actual = ft.Text(str(boleta.get("estado", "pendiente")), size=13, weight=ft.FontWeight.BOLD, color=NAVY)
 
-    rut_emisor = usuario_info.get("rut")
+    # El RUT del emisor debe ser el que quedo registrado en ESTA boleta al emitirla
+    # (columna 'rut_emisor'), no el RUT del perfil de quien esta logueado ahora mismo.
+    # Esto es clave para el rol 'contador', que puede ver y anular boletas de
+    # distintos emisores: si se usara el RUT del usuario logueado, se intentaria
+    # anular con el RUT equivocado ante el SII.
+    rut_emisor = boleta.get("rut_emisor") or usuario_info.get("rut")
     clave_ya_guardada = bool(state.get("clave_sii_temp"))
 
     clave_sii = ft.TextField(
@@ -56,6 +61,18 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
         ]
     )
     cambiar_clave_btn = ft.TextButton("Cambiar clave", visible=clave_ya_guardada)
+
+    # Si la boleta es antigua (emitida antes de guardar rut_emisor) no habra RUT
+    # registrado; se permite ingresarlo manualmente como respaldo.
+    rut_emisor_manual = ft.TextField(
+        label="RUT Emisor de esta boleta (no quedo registrado)",
+        hint_text="12.345.678-9",
+        visible=not bool(rut_emisor),
+    )
+    info_rut_emisor = ft.Text(
+        f"RUT Emisor de esta boleta: {rut_emisor}" if rut_emisor else "",
+        size=11, color=GREY_TEXT, visible=bool(rut_emisor),
+    )
 
     email_destino = ft.TextField(label="Enviar a otro correo (opcional)", hint_text="cliente@ejemplo.com")
 
@@ -96,9 +113,12 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
     def clave_actual():
         return state.get("clave_sii_temp") or (clave_sii.value.strip() if clave_sii.value else None)
 
+    def rut_emisor_actual():
+        return rut_emisor or (rut_emisor_manual.value.strip() if rut_emisor_manual.value else None)
+
     def validar_clave():
-        if not rut_emisor:
-            msg_status.value = "Tu perfil no tiene RUT registrado."
+        if not rut_emisor_actual():
+            msg_status.value = "Falta el RUT del emisor de esta boleta (ingresalo arriba)."
             msg_status.color = RED_TEXT
             page.update()
             return False
@@ -118,7 +138,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
         if not validar_clave():
             return
         try:
-            resultado = api_client.descargar_pdf(rut=rut_emisor, clave=clave_actual(), codigo=codigo_sii)
+            resultado = api_client.descargar_pdf(rut=rut_emisor_actual(), clave=clave_actual(), codigo=codigo_sii)
             msg_status.value = await abrir_pdf_resultado(page, resultado)
             msg_status.color = GREEN
             db_service.registrar_evento_historial(
@@ -135,7 +155,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
             return
         try:
             resultado = api_client.enviar_email(
-                rut=rut_emisor,
+                rut=rut_emisor_actual(),
                 clave=clave_actual(),
                 codigo=codigo_sii,
                 email_destino=email_destino.value.strip() or None,
@@ -163,9 +183,9 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
             return
         try:
             resultado = api_client.anular_boleta(
-                rut=rut_emisor,
+                rut=rut_emisor_actual(),
                 clave=clave_actual(),
-                emisor=rut_emisor,
+                emisor=rut_emisor_actual(),
                 folio=str(folio),
                 causa=int(causa_anulacion.value),
             )
@@ -235,6 +255,8 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
                     content=ft.Column([
                         ft.Text("Acciones sobre el documento", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
                         ft.Container(height=8),
+                        info_rut_emisor,
+                        rut_emisor_manual,
                         clave_sii,
                         ft.Row([info_clave, cambiar_clave_btn], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                         ft.Container(height=6),

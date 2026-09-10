@@ -9,7 +9,8 @@ db_service = SupabaseService()
 api_client = ApiGatewayClient()
 
 
-def construir_payload_boleta(rut_receptor, nombre_receptor, descripcion_servicio, monto_val, modo_retencion, rut_emisor):
+def construir_payload_boleta(rut_receptor, nombre_receptor, direccion_receptor, comuna_receptor,
+                              descripcion_servicio, monto_val, modo_retencion, rut_emisor):
     return {
         "Encabezado": {
             "IdDoc": {
@@ -22,6 +23,8 @@ def construir_payload_boleta(rut_receptor, nombre_receptor, descripcion_servicio
             "Receptor": {
                 "RUTRecep": rut_receptor,
                 "RznSocRecep": nombre_receptor,
+                "DirRecep": direccion_receptor,
+                "CmnaRecep": comuna_receptor,
             },
         },
         "Detalle": [
@@ -62,6 +65,8 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
     clave_sii = ft.TextField(label="Clave SII (tuya, no se guarda)", password=True, can_reveal_password=True)
     rut_receptor = ft.TextField(label="RUT Receptor", hint_text="76.111.222-3")
     nombre_receptor = ft.TextField(label="Nombre / Razon Social")
+    direccion_receptor = ft.TextField(label="Direccion Receptor", hint_text="Av. Principal 123")
+    comuna_receptor = ft.TextField(label="Comuna Receptor", hint_text="Santiago")
     descripcion_servicio = ft.TextField(label="Descripcion del Servicio", multiline=True, min_lines=2)
     monto_bruto = ft.TextField(label="Monto Bruto ($)", keyboard_type=ft.KeyboardType.NUMBER)
 
@@ -87,6 +92,12 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
 
         if not rut_receptor.value or not monto_bruto.value:
             msg_status.value = "Completa el RUT y el Monto Bruto."
+            msg_status.color = RED_TEXT
+            page.update()
+            return
+
+        if not direccion_receptor.value or not comuna_receptor.value:
+            msg_status.value = "Completa la Direccion y la Comuna del receptor."
             msg_status.color = RED_TEXT
             page.update()
             return
@@ -126,6 +137,8 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
             payload = construir_payload_boleta(
                 rut_receptor=rut_receptor.value.strip(),
                 nombre_receptor=nombre_receptor.value.strip() or "Receptor Sin Nombre",
+                direccion_receptor=direccion_receptor.value.strip(),
+                comuna_receptor=comuna_receptor.value.strip(),
                 descripcion_servicio=descripcion_servicio.value.strip(),
                 monto_val=monto_val,
                 modo_retencion=int(modo_retencion.value),
@@ -137,12 +150,16 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                 clave=clave_sii.value.strip(),
                 boleta_payload=payload,
             )
-
         except ApiGatewayError as api_err:
+            print("=== ERROR API GATEWAY ===")
+            print("STATUS:", api_err.status_code)
+            print("PAYLOAD COMPLETO:", api_err.payload)
+            print("==========================")
             msg_status.value = mensaje_error_api(api_err)
             msg_status.color = RED_TEXT
             page.update()
             return
+
         except Exception as err:
             msg_status.value = f"Error inesperado al emitir: {err}"
             msg_status.color = RED_TEXT
@@ -177,6 +194,7 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                 "monto_liquido": monto_val - retenido,
                 "modo_retencion": modo,
                 "fecha_emision": resultado_api.get("fecha_emision") or None,
+                "rut_emisor": rut_emisor,
                 # 'codigo_sii' no es una columna real de 'boletas'; el codigo de verificacion del
                 # SII se guarda dentro del jsonb 'respuesta_sii' junto con el resto de la respuesta cruda.
                 "respuesta_sii": {
@@ -225,6 +243,8 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                         ft.Text("Receptor", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
                         rut_receptor,
                         nombre_receptor,
+                        direccion_receptor,
+                        comuna_receptor,
                         ft.Divider(height=1, color="#EEF0F3"),
                         descripcion_servicio,
                         monto_bruto,
