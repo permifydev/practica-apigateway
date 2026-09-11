@@ -91,12 +91,14 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
             causa_anulacion,
             ft.ElevatedButton(
                 "Confirmar Anulacion",
-                width=400, height=42,
+                height=42,
                 style=ft.ButtonStyle(bgcolor=RED_TEXT, color="white"),
             ),
         ]
     )
-    toggle_anular_btn = ft.OutlinedButton("Anular Boleta", width=400, height=42)
+    toggle_anular_btn = ft.OutlinedButton("Anular Boleta", height=42)
+    btn_descargar_pdf = ft.OutlinedButton("Descargar PDF", height=42)
+    btn_enviar_email = ft.OutlinedButton("Enviar por Email", height=42)
 
     msg_status = ft.Text("", size=12)
 
@@ -150,6 +152,8 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
             msg_status.color = RED_TEXT
         page.update()
 
+    btn_descargar_pdf.on_click = accion_descargar_pdf
+
     def accion_enviar_email(e):
         if not validar_clave():
             return
@@ -170,6 +174,8 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
             msg_status.value = mensaje_error_api(api_err)
             msg_status.color = RED_TEXT
         page.update()
+
+    btn_enviar_email.on_click = accion_enviar_email
 
     def toggle_anulacion(e):
         opciones_anulacion.visible = not opciones_anulacion.visible
@@ -209,6 +215,87 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
 
     opciones_anulacion.controls[-1].on_click = accion_anular
 
+    # Responsive: en pantallas angostas (celular) las tarjetas y los botones usan
+    # el ancho disponible completo en vez de valores fijos, para que nada se corte.
+    ANCHO_MAXIMO_TARJETA = 450
+
+    def ancho_tarjeta():
+        if page.width and page.width < ANCHO_MAXIMO_TARJETA + 40:
+            return page.width - 40
+        return ANCHO_MAXIMO_TARJETA
+
+    def ancho_contenido():
+        # Ancho util dentro de la tarjeta, descontando el padding=20 de cada lado.
+        return ancho_tarjeta() - 40
+
+    toggle_anular_btn.width = ancho_contenido()
+    btn_descargar_pdf.width = ancho_contenido()
+    btn_enviar_email.width = ancho_contenido()
+    opciones_anulacion.controls[-1].width = ancho_contenido()
+
+    tarjeta_resumen = ft.Container(
+        bgcolor="white", border_radius=CARD_RADIUS, padding=20, width=ancho_tarjeta(),
+        content=ft.Column([
+            ft.Row(
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                controls=[
+                    ft.Text("Estado", size=12, color=GREY_TEXT),
+                    estado_actual,
+                ]
+            ),
+            ft.Divider(height=1, color="#EEF0F3"),
+            ft.Text(f"Receptor: {contraparte}", size=13, color=NAVY),
+            ft.Text(f"Fecha emision: {fecha}", size=12, color=GREY_TEXT),
+            ft.Container(height=6),
+            ft.Row(
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                controls=[
+                    ft.Column([
+                        ft.Text("Monto Bruto", size=11, color=GREY_TEXT),
+                        ft.Text(f"${monto_bruto:,.0f}".replace(",", "."), size=16, weight=ft.FontWeight.BOLD, color=NAVY),
+                    ]),
+                    ft.Column([
+                        ft.Text("Monto Liquido", size=11, color=GREY_TEXT),
+                        ft.Text(f"${monto_liquido:,.0f}".replace(",", "."), size=16, weight=ft.FontWeight.BOLD, color=NAVY),
+                    ]),
+                ]
+            ),
+        ])
+    )
+
+    tarjeta_acciones = ft.Container(
+        bgcolor="white", border_radius=CARD_RADIUS, padding=20, width=ancho_tarjeta(),
+        content=ft.Column([
+            ft.Text("Acciones sobre el documento", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
+            ft.Container(height=8),
+            info_rut_emisor,
+            rut_emisor_manual,
+            clave_sii,
+            ft.Row([info_clave, cambiar_clave_btn], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.Container(height=6),
+            btn_descargar_pdf,
+            email_destino,
+            btn_enviar_email,
+            ft.Container(height=10),
+            toggle_anular_btn,
+            opciones_anulacion,
+            msg_status,
+        ])
+    )
+
+    def on_resize(e):
+        nuevo_ancho = ancho_tarjeta()
+        tarjeta_resumen.width = nuevo_ancho
+        tarjeta_acciones.width = nuevo_ancho
+        nuevo_ancho_contenido = ancho_contenido()
+        toggle_anular_btn.width = nuevo_ancho_contenido
+        btn_descargar_pdf.width = nuevo_ancho_contenido
+        btn_enviar_email.width = nuevo_ancho_contenido
+        opciones_anulacion.controls[-1].width = nuevo_ancho_contenido
+        page.update()
+
+    page.on_resized = on_resize
+
     return ft.Container(
         padding=20,
         expand=True,
@@ -220,55 +307,9 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
                     ft.TextButton("Volver", on_click=lambda e: navigate_to("Mis BHE")),
                     ft.Text(f"Boleta N {folio}", size=20, weight=ft.FontWeight.BOLD, color=NAVY)
                 ]),
-                ft.Container(
-                    bgcolor="white", border_radius=CARD_RADIUS, padding=20, width=450,
-                    content=ft.Column([
-                        ft.Row(
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                            controls=[
-                                ft.Text("Estado", size=12, color=GREY_TEXT),
-                                estado_actual,
-                            ]
-                        ),
-                        ft.Divider(height=1, color="#EEF0F3"),
-                        ft.Text(f"Receptor: {contraparte}", size=13, color=NAVY),
-                        ft.Text(f"Fecha emision: {fecha}", size=12, color=GREY_TEXT),
-                        ft.Container(height=6),
-                        ft.Row(
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                            controls=[
-                                ft.Column([
-                                    ft.Text("Monto Bruto", size=11, color=GREY_TEXT),
-                                    ft.Text(f"${monto_bruto:,.0f}".replace(",", "."), size=16, weight=ft.FontWeight.BOLD, color=NAVY),
-                                ]),
-                                ft.Column([
-                                    ft.Text("Monto Liquido", size=11, color=GREY_TEXT),
-                                    ft.Text(f"${monto_liquido:,.0f}".replace(",", "."), size=16, weight=ft.FontWeight.BOLD, color=NAVY),
-                                ]),
-                            ]
-                        ),
-                    ])
-                ),
+                tarjeta_resumen,
                 ft.Container(height=14),
-                ft.Container(
-                    bgcolor="white", border_radius=CARD_RADIUS, padding=20, width=450,
-                    content=ft.Column([
-                        ft.Text("Acciones sobre el documento", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
-                        ft.Container(height=8),
-                        info_rut_emisor,
-                        rut_emisor_manual,
-                        clave_sii,
-                        ft.Row([info_clave, cambiar_clave_btn], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        ft.Container(height=6),
-                        ft.OutlinedButton("Descargar PDF", on_click=accion_descargar_pdf, width=400, height=42),
-                        email_destino,
-                        ft.OutlinedButton("Enviar por Email", on_click=accion_enviar_email, width=400, height=42),
-                        ft.Container(height=10),
-                        toggle_anular_btn,
-                        opciones_anulacion,
-                        msg_status,
-                    ])
-                )
+                tarjeta_acciones,
             ]
         )
     )
