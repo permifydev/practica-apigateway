@@ -13,6 +13,11 @@ MOCK_MODE = os.getenv("MOCK_MODE", "True") == "True"
 APIGATEWAY_BASE_URL = os.getenv("APIGATEWAY_BASE_URL", "https://app.apigateway.cl")
 APIGATEWAY_TOKEN = os.getenv("APIGATEWAY_TOKEN", "token_de_prueba")
 
+# Proxy Squid (AWS Lightsail) - apigateway.cl solo acepta conexiones desde esta IP fija.
+# Formato esperado: http://usuario:clave@ip:puerto
+# Ejemplo: http://practica_APIG:PracticaDuocAPIGate@56.126.59.135:3128
+PROXY_URL = os.getenv("PROXY_URL")
+
 # Configuración Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://tu-proyecto.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "tu_anon_key_aqui")

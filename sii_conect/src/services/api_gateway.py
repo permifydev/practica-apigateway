@@ -2,7 +2,7 @@ import logging
 import random
 from datetime import datetime
 import requests
-from src.config import APIGATEWAY_BASE_URL, APIGATEWAY_TOKEN, MOCK_MODE
+from src.config import APIGATEWAY_BASE_URL, APIGATEWAY_TOKEN, MOCK_MODE, PROXY_URL
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +13,29 @@ class ApiGatewayError(Exception):
         self.payload = payload
 
 class ApiGatewayClient:
-    def __init__(self, token: str = APIGATEWAY_TOKEN, base_url: str = APIGATEWAY_BASE_URL, mock: bool = MOCK_MODE):
+    def __init__(self, token: str = APIGATEWAY_TOKEN, base_url: str = APIGATEWAY_BASE_URL,
+                 mock: bool = MOCK_MODE, proxy_url: str | None = PROXY_URL):
         self.token = token
         self.base_url = base_url.rstrip("/") if base_url else "https://app.apigateway.cl"
         self.mock = mock
+        self.proxy_url = proxy_url
         self.session = requests.Session()
+
+        # apigateway.cl solo permite consultas desde la IP fija del proxy Squid (Lightsail).
+        # Sin esto, las peticiones salen con la IP real de la maquina/servidor (ej. la IP
+        # dinamica de Render), que no esta registrada ni tiene creditos asociados, y
+        # apigateway.cl responde con "Creditos insuficientes ... la IP de origen esta en
+        # uso por otra conexion sin creditos". No se aplica en modo mock porque ahi no
+        # se hace ninguna llamada de red real.
+        if self.proxy_url and not self.mock:
+            self.session.proxies = {"http": self.proxy_url, "https": self.proxy_url}
+            logger.info("Proxy Squid configurado para las llamadas a apigateway.cl")
+        elif not self.mock:
+            logger.warning(
+                "MOCK_MODE=False pero no hay PROXY_URL configurado: las llamadas a "
+                "apigateway.cl saldran con la IP directa de este servidor, lo que "
+                "probablemente sea rechazado si esa IP no esta registrada."
+            )
 
     def _headers(self) -> dict:
         return {
