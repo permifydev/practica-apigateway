@@ -56,11 +56,15 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
             )
         )
 
+    # El RUT Emisor no se escribe a mano: siempre es el del usuario logueado
+    # (viene de la tabla 'perfiles', columna 'rut'). Queda fijo y no editable
+    # para que un usuario no pueda emitir boletas a nombre de otro RUT.
     rut_emisor_display = ft.TextField(
         label="RUT Emisor",
-        value="",
+        value=usuario_info.get("rut", ""),
         hint_text="Ingrese RUT",
         border_color="#DDE1E6",
+        disabled=True,
     )
     clave_sii = ft.TextField(label="Clave SII (tuya, no se guarda)", password=True, can_reveal_password=True)
     rut_receptor = ft.TextField(label="RUT Receptor", hint_text="76.111.222-3")
@@ -222,6 +226,62 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
             msg_status.color = RED_TEXT
             page.update()
 
+    # Responsive: en pantallas angostas (celular) la tarjeta usa el ancho
+    # disponible completo en vez de un valor fijo, para que nada se corte.
+    ANCHO_MAXIMO_TARJETA = 450
+
+    def ancho_tarjeta():
+        if page.width and page.width < ANCHO_MAXIMO_TARJETA + 40:
+            return page.width - 40
+        return ANCHO_MAXIMO_TARJETA
+
+    tarjeta = ft.Container(
+        bgcolor="white", border_radius=CARD_RADIUS, padding=20, width=ancho_tarjeta(),
+        content=ft.Column([
+            ft.Text("Emisor", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
+            rut_emisor_display,
+            clave_sii,
+            ft.Divider(height=1, color="#EEF0F3"),
+            ft.Text("Receptor", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
+            rut_receptor,
+            nombre_receptor,
+            direccion_receptor,
+            comuna_receptor,
+            ft.Divider(height=1, color="#EEF0F3"),
+            descripcion_servicio,
+            monto_bruto,
+            ft.Text("Retencion", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
+            modo_retencion,
+            msg_status,
+            ft.Row(
+                controls=[
+                    ft.OutlinedButton(
+                        "Cancelar",
+                        on_click=lambda e: navigate_to("Inicio"),
+                        expand=True, height=45,
+                        style=ft.ButtonStyle(
+                            color=RED_TEXT,
+                            side=ft.BorderSide(1, RED_TEXT),
+                        ),
+                    ),
+                    ft.Container(width=10),
+                    ft.ElevatedButton(
+                        "Emitir Boleta",
+                        on_click=procesar_emision,
+                        expand=True, height=45,
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+        ])
+    )
+
+    def on_resize(e):
+        tarjeta.width = ancho_tarjeta()
+        page.update()
+
+    page.on_resized = on_resize
+
     return ft.Container(
         padding=20,
         expand=True,
@@ -233,27 +293,7 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                     ft.TextButton("Volver", on_click=lambda e: navigate_to("Inicio")),
                     ft.Text("Emitir Boleta de Honorarios", size=20, weight=ft.FontWeight.BOLD, color=NAVY)
                 ]),
-                ft.Container(
-                    bgcolor="white", border_radius=CARD_RADIUS, padding=20, width=450,
-                    content=ft.Column([
-                        ft.Text("Emisor", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
-                        rut_emisor_display,
-                        clave_sii,
-                        ft.Divider(height=1, color="#EEF0F3"),
-                        ft.Text("Receptor", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
-                        rut_receptor,
-                        nombre_receptor,
-                        direccion_receptor,
-                        comuna_receptor,
-                        ft.Divider(height=1, color="#EEF0F3"),
-                        descripcion_servicio,
-                        monto_bruto,
-                        ft.Text("Retencion", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
-                        modo_retencion,
-                        msg_status,
-                        ft.ElevatedButton("Emitir Documento", on_click=procesar_emision, width=400, height=45)
-                    ])
-                )
+                tarjeta,
             ]
         )
     )

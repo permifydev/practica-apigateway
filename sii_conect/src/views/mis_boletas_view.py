@@ -69,13 +69,13 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
     )
 
     # --- Reconciliar con el SII (mes actual) ---
-    # Da lo mismo quien tenga la sesion abierta en la app (puede ser una cuenta
-    # compartida entre varias personas para pruebas): las boletas que se muestran
-    # abajo son las que coinciden con el RUT + Clave SII que se ingresen aca, no
-    # las del perfil logueado. Con eso cada persona ve y puede anular las suyas.
+    # El RUT ya no se escribe a mano: siempre es el del usuario logueado (tabla
+    # 'perfiles'). Cada cuenta de prueba debe tener su propio RUT asociado; si
+    # se necesita reconciliar con otro RUT, se inicia sesion con esa cuenta.
     rut_reconciliar = ft.TextField(
         label="RUT Emisor", hint_text="12.345.678-9",
         value=rut_usuario or "", width=200,
+        disabled=True,
     )
     clave_reconciliar = ft.TextField(
         label="Clave SII para reconciliar", password=True, can_reveal_password=True,
