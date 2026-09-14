@@ -213,7 +213,43 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
             msg_status.color = RED_TEXT
         page.update()
 
-    opciones_anulacion.controls[-1].on_click = accion_anular
+    def cerrar_confirmacion_anulacion():
+        dialog_confirmar_anulacion.open = False
+        page.update()
+
+    def abrir_confirmacion_anulacion(e):
+        if not validar_clave():
+            return
+        # page.open()/page.close() no existen en esta version de Flet (usa ft.app,
+        # no ft.run); se usa la forma clasica: overlay + open=True/False + update().
+        if dialog_confirmar_anulacion not in page.overlay:
+            page.overlay.append(dialog_confirmar_anulacion)
+        dialog_confirmar_anulacion.open = True
+        page.update()
+
+    def confirmar_anulacion(e):
+        cerrar_confirmacion_anulacion()
+        accion_anular(e)
+
+    dialog_confirmar_anulacion = ft.AlertDialog(
+        modal=True,
+        title=ft.Text("Confirmar anulación"),
+        content=ft.Text(
+            f"¿Estás seguro de anular la boleta folio {folio}? "
+            "Esta accion es irreversible: una vez anulada ante el SII, no se puede deshacer."
+        ),
+        actions=[
+            ft.TextButton("Cancelar", on_click=lambda e: cerrar_confirmacion_anulacion()),
+            ft.ElevatedButton(
+                "Confirmar",
+                on_click=confirmar_anulacion,
+                style=ft.ButtonStyle(bgcolor=RED_TEXT, color="white"),
+            ),
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+
+    opciones_anulacion.controls[-1].on_click = abrir_confirmacion_anulacion
 
     # Responsive: en pantallas angostas (celular) las tarjetas y los botones usan
     # el ancho disponible completo en vez de valores fijos, para que nada se corte.

@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, CARD_RADIUS, GREY_TEXT, tasa_retencion_vigente
@@ -5,12 +6,14 @@ from src.services.supabase_service import SupabaseService
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
 from src.utils.helpers import mapear_estado_boleta, mensaje_error_api, validar_rut
 
+logger = logging.getLogger(__name__)
+
 db_service = SupabaseService()
 api_client = ApiGatewayClient()
 
 
 def construir_payload_boleta(rut_receptor, nombre_receptor, direccion_receptor, comuna_receptor,
-                              descripcion_servicio, monto_val, modo_retencion, rut_emisor):
+                             descripcion_servicio, monto_val, modo_retencion, rut_emisor):
     return {
         "Encabezado": {
             "IdDoc": {
@@ -57,8 +60,6 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
         )
 
     # El RUT Emisor no se escribe a mano: siempre es el del usuario logueado
-    # (viene de la tabla 'perfiles', columna 'rut'). Queda fijo y no editable
-    # para que un usuario no pueda emitir boletas a nombre de otro RUT.
     rut_emisor_display = ft.TextField(
         label="RUT Emisor",
         value=usuario_info.get("rut", ""),
@@ -108,7 +109,7 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
 
         rut_emisor = rut_emisor_display.value.strip() if rut_emisor_display.value else ""
         if not rut_emisor:
-            msg_status.value = "Ingrese RUT"
+            msg_status.value = "El perfil del usuario no posee un RUT registrado."
             msg_status.color = RED_TEXT
             page.update()
             return
@@ -155,21 +156,20 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                 boleta_payload=payload,
             )
         except ApiGatewayError as api_err:
-            print("=== ERROR API GATEWAY ===")
-            print("STATUS:", api_err.status_code)
-            print("PAYLOAD COMPLETO:", api_err.payload)
-            print("==========================")
+            logger.error(f"[Emitir View] Error de API Gateway ({api_err.status_code}): {api_err.payload}")
             msg_status.value = mensaje_error_api(api_err)
             msg_status.color = RED_TEXT
             page.update()
             return
 
         except Exception as err:
+            logger.error(f"[Emitir View] Excepcion inesperada al emitir: {err}")
             msg_status.value = f"Error inesperado al emitir: {err}"
             msg_status.color = RED_TEXT
             page.update()
             return
 
+        # Registro en la BD tras emision exitosa en SII
         certificado = db_service.obtener_certificado_activo(usuario_info.get("id"))
 
         try:
@@ -184,6 +184,7 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
             modo = int(modo_retencion.value)
             tasa_vigente = tasa_retencion_vigente()
             retenido = round(monto_val * tasa_vigente) if modo != 0 else 0
+            fecha_emis = resultado_api.get("fecha_emision") or datetime.now().strftime("%Y-%m-%d")
 
             boleta_payload = {
                 "usuario_id": usuario_info.get("id"),
@@ -197,10 +198,8 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                 "monto_retenido": retenido,
                 "monto_liquido": monto_val - retenido,
                 "modo_retencion": modo,
-                "fecha_emision": resultado_api.get("fecha_emision") or None,
+                "fecha_emision": fecha_emis,
                 "rut_emisor": rut_emisor,
-                # 'codigo_sii' no es una columna real de 'boletas'; el codigo de verificacion del
-                # SII se guarda dentro del jsonb 'respuesta_sii' junto con el resto de la respuesta cruda.
                 "respuesta_sii": {
                     "folio": resultado_api.get("folio"),
                     "codigo": resultado_api.get("codigo"),
@@ -222,12 +221,17 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                 page.update()
 
         except Exception as err:
+            logger.error(f"[Emitir View] Error al guardar en base de datos: {err}")
             msg_status.value = f"La boleta se emitio (folio {resultado_api.get('folio')}) pero hubo un error al guardar localmente: {err}"
             msg_status.color = RED_TEXT
             page.update()
 
+    def cerrar_confirmacion():
+        dialog_confirmar.open = False
+        page.update()
+
     def confirmar_emision(e):
-        page.close(dialog_confirmar)
+        cerrar_confirmacion()
         procesar_emision(e)
 
     dialog_confirmar = ft.AlertDialog(
@@ -235,16 +239,20 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
         title=ft.Text("Confirmar emisión"),
         content=ft.Text("¿Quieres emitir esta boleta?"),
         actions=[
-            ft.TextButton("Cancelar", on_click=lambda e: page.close(dialog_confirmar)),
+            ft.TextButton("Cancelar", on_click=lambda e: cerrar_confirmacion()),
             ft.ElevatedButton("Confirmar", on_click=confirmar_emision),
         ],
         actions_alignment=ft.MainAxisAlignment.END,
     )
 
     def abrir_confirmacion(e):
-        page.open(dialog_confirmar)
-    # Responsive: en pantallas angostas (celular) la tarjeta usa el ancho
-    # disponible completo en vez de un valor fijo, para que nada se corte.
+        # page.open()/page.close() no existen en esta version de Flet (usa ft.app,
+        # no ft.run); se usa la forma clasica: overlay + open=True/False + update().
+        if dialog_confirmar not in page.overlay:
+            page.overlay.append(dialog_confirmar)
+        dialog_confirmar.open = True
+        page.update()
+
     ANCHO_MAXIMO_TARJETA = 450
 
     def ancho_tarjeta():
@@ -253,7 +261,10 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
         return ANCHO_MAXIMO_TARJETA
 
     tarjeta = ft.Container(
-        bgcolor="white", border_radius=CARD_RADIUS, padding=20, width=ancho_tarjeta(),
+        bgcolor="white",
+        border_radius=CARD_RADIUS,
+        padding=20,
+        width=ancho_tarjeta(),
         content=ft.Column([
             ft.Text("Emisor", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
             rut_emisor_display,
@@ -275,7 +286,8 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                     ft.OutlinedButton(
                         "Cancelar",
                         on_click=lambda e: navigate_to("Inicio"),
-                        expand=True, height=45,
+                        expand=True,
+                        height=45,
                         style=ft.ButtonStyle(
                             color=RED_TEXT,
                             side=ft.BorderSide(1, RED_TEXT),
@@ -285,7 +297,8 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                     ft.ElevatedButton(
                         "Emitir Boleta",
                         on_click=abrir_confirmacion,
-                        expand=True, height=45,
+                        expand=True,
+                        height=45,
                     ),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,

@@ -26,7 +26,6 @@ class SupabaseService:
 
     def __init__(self):
         # Un solo cliente compartido para toda la app (definido una vez en config.py).
-        # Asi la sesion de Auth iniciada en login_view.py sigue viva para el resto de las vistas.
         self.client: Client | None = _shared_client
         if self.client:
             logger.info("[Supabase] Usando cliente compartido (definido en src.config)")
@@ -77,86 +76,88 @@ class SupabaseService:
             return None
 
     def validar_usuario(self, identificador: str) -> dict | None:
-        """SOLO modo simulacion (sin credenciales de Supabase reales). Con Supabase real, usa
-        iniciar_sesion() + obtener_perfil_propio(): las policies RLS de 'perfiles' exigen una
-        sesion 'authenticated', asi que una consulta anonima aqui siempre devolveria 0 filas."""
+        """SOLO modo simulacion (sin credenciales de Supabase reales)."""
         if not self.client:
             usuarios_mock = {
                 "contador@test.com": {"id": "1", "nombre": "Contador Test", "rut": "11.111.111-1", "rol": "contador", "email": "contador@test.com"},
                 "11.111.111-1": {"id": "1", "nombre": "Contador Test", "rut": "11.111.111-1", "rol": "contador", "email": "contador@test.com"},
-
                 "emisor@test.com": {"id": "2", "nombre": "Maria Emisora", "rut": "22.222.222-2", "rol": "emisor", "email": "emisor@test.com"},
                 "22.222.222-2": {"id": "2", "nombre": "Maria Emisora", "rut": "22.222.222-2", "rol": "emisor", "email": "emisor@test.com"},
-
                 "cliente@test.com": {"id": "3", "nombre": "Cliente Receptor", "rut": "33.333.333-3", "rol": "cliente", "email": "cliente@test.com"},
                 "33.333.333-3": {"id": "3", "nombre": "Cliente Receptor", "rut": "33.333.333-3", "rol": "cliente", "email": "cliente@test.com"},
             }
             return usuarios_mock.get(identificador.strip().lower())
 
-        logger.warning(
-            "validar_usuario() fue llamado con un cliente Supabase real: esta funcion ya no es "
-            "confiable para login real (RLS bloquea consultas anonimas). Usa iniciar_sesion()."
-        )
+        logger.warning("validar_usuario() fue llamado con un cliente Supabase real: usa iniciar_sesion().")
         return None
 
     def actualizar_perfil(self, usuario_id: str, email: str) -> dict | None:
-        """Actualiza el correo de contacto del perfil. RUT y rol no son editables desde la app."""
+        """Actualiza el correo de contacto del perfil."""
         if not self.client:
             logger.info(f"[MOCK] Actualizando perfil {usuario_id} con email {email}")
             return {"id": usuario_id, "email": email}
 
         try:
             response = self.client.table("perfiles").update({"email": email}).eq("id", usuario_id).execute()
-            # response.data es una lista; si viene vacia (ID inexistente o bloqueado por RLS)
-            # devolvemos None para que la vista pueda distinguirlo de un update real.
             return response.data[0] if response.data else None
         except Exception as e:
             logger.error(f"Error al actualizar perfil: {e}")
             return None
 
-    def obtener_o_crear_receptor(self, rut: str, nombre: str, email: str = "", usuario_id: str | None = None) -> dict | str | None:
-        """Busca un receptor por RUT o lo crea si no existe."""
+    def obtener_o_crear_receptor(self, rut: str, nombre: str, email: str = "", usuario_id: str | None = None) -> dict | None:
+        """Busca un receptor por RUT o lo crea si no existe. Garantiza devolver un dict con clave 'id'."""
         if not self.client:
             return {"id": "mock-uuid-receptor", "nombre": nombre, "rut": rut}
 
         try:
-            res = self.client.table("receptores").select("id, nombre, rut").eq("rut", rut).execute()
+            rut_clean = rut.strip()
+            res = self.client.table("receptores").select("id, nombre, rut").eq("rut", rut_clean).execute()
             if res.data:
                 return res.data[0]
 
-            nuevo = self.client.table("receptores").insert({
-                "rut": rut,
-                "nombre": nombre,
-                "email": email,
-                "usuario_id": usuario_id,  # requerido por la policy RLS: auth.uid() = usuario_id
-            }).execute()
-            return nuevo.data[0] if nuevo.data else None
+            payload = {
+                "rut": rut_clean,
+                "nombre": nombre.strip(),
+            }
+            if email:
+                payload["email"] = email.strip()
+            if usuario_id:
+                payload["usuario_id"] = usuario_id
+
+            nuevo = self.client.table("receptores").insert(payload).execute()
+            return nuevo.data[0] if (nuevo and nuevo.data) else None
         except Exception as e:
-            logger.error(f"Error en receptor: {e}")
+            logger.error(f"Error en obtener_o_crear_receptor: {e}")
             return None
 
     def listar_receptores(self) -> list[dict]:
-        """Devuelve todos los receptores registrados (contrapartes usadas al emitir BHE)."""
+        """Devuelve todos los receptores registrados."""
         if not self.client:
             return list(SupabaseService._mock_receptores)
 
         try:
             res = self.client.table("receptores").select("id, rut, nombre, email").order("nombre").execute()
-            return res.data
+            return res.data or []
         except Exception as e:
             logger.error(f"Error al listar receptores: {e}")
             return []
 
     def crear_receptor(self, rut: str, nombre: str, email: str = "", usuario_id: str | None = None) -> dict | None:
-        """Crea un receptor nuevo (sin buscar duplicados primero, a diferencia de obtener_o_crear_receptor)."""
+        """Crea un receptor nuevo."""
         if not self.client:
             nuevo = {"id": f"mock-r{len(SupabaseService._mock_receptores) + 1}", "rut": rut, "nombre": nombre, "email": email}
             SupabaseService._mock_receptores.append(nuevo)
             return nuevo
 
         try:
-            response = self.client.table("receptores").insert({"rut": rut, "nombre": nombre, "email": email, "usuario_id": usuario_id}).execute()
-            return response.data[0] if response.data else None
+            payload = {"rut": rut.strip(), "nombre": nombre.strip()}
+            if email:
+                payload["email"] = email.strip()
+            if usuario_id:
+                payload["usuario_id"] = usuario_id
+
+            response = self.client.table("receptores").insert(payload).execute()
+            return response.data[0] if (response and response.data) else None
         except Exception as e:
             logger.error(f"Error al crear receptor: {e}")
             return None
@@ -173,13 +174,13 @@ class SupabaseService:
 
         try:
             response = self.client.table("receptores").update({"nombre": nombre, "email": email}).eq("id", receptor_id).execute()
-            return response.data[0] if response.data else None
+            return response.data[0] if (response and response.data) else None
         except Exception as e:
             logger.error(f"Error al actualizar receptor: {e}")
             return None
 
     def obtener_certificado_activo(self, usuario_id: str) -> dict | None:
-        """Devuelve el certificado digital vigente del usuario, si tiene uno. No incluye credenciales SII: esas no se persisten."""
+        """Devuelve el certificado digital vigente del usuario."""
         if not self.client:
             return {
                 "id": "mock-uuid-certificado",
@@ -197,13 +198,13 @@ class SupabaseService:
                 .order("fecha_vencimiento", desc=True)\
                 .limit(1)\
                 .execute()
-            return res.data[0] if res.data else None
+            return res.data[0] if (res and res.data) else None
         except Exception as e:
             logger.error(f"Error al consultar certificado activo: {e}")
             return None
 
     def guardar_certificado(self, certificado_data: dict) -> dict | None:
-        """Inserta un registro de certificado (metadatos, no credenciales)."""
+        """Inserta un registro de certificado."""
         if not self.client:
             logger.info(f"[MOCK] Guardando certificado en DB: {certificado_data}")
             return certificado_data
@@ -218,7 +219,7 @@ class SupabaseService:
                 .execute()
 
             response = self.client.table("certificados_digitales").insert(certificado_data).execute()
-            return response.data
+            return response.data[0] if (response and response.data) else None
         except Exception as e:
             logger.error(f"Error al guardar certificado: {e}")
             return None
@@ -234,13 +235,13 @@ class SupabaseService:
                 .eq("usuario_id", usuario_id)\
                 .order("fecha_carga", desc=True)\
                 .execute()
-            return res.data
+            return res.data or []
         except Exception as e:
             logger.error(f"Error al listar certificados: {e}")
             return []
 
     def guardar_boleta(self, boleta_data: dict, contraparte_nombre: str = "") -> dict | None:
-        """Inserta una boleta en la tabla principal 'boletas'."""
+        """Inserta una boleta en la tabla principal 'boletas' sanitizando tipos de datos."""
         if not self.client:
             SupabaseService._mock_folio_counter["value"] += 1
             folio_generado = boleta_data.get("folio_sii") or SupabaseService._mock_folio_counter["value"]
@@ -248,7 +249,7 @@ class SupabaseService:
             boleta_mock = {
                 **boleta_data,
                 "id": f"mock-{folio_generado}",
-                "folio_sii": folio_generado,
+                "folio_sii": str(folio_generado),
                 "contraparte_nombre": contraparte_nombre or "Receptor sin nombre",
             }
             logger.info(f"[MOCK] Guardando boleta en DB: {boleta_mock}")
@@ -256,14 +257,36 @@ class SupabaseService:
             return boleta_mock
 
         try:
-            response = self.client.table("boletas").insert(boleta_data).execute()
-            return response.data[0] if response.data else None
+            payload = dict(boleta_data)
+
+            # Sanitizacion 1: Si receptor_id vino como diccionario completo, extraer solo el string ID
+            if isinstance(payload.get("receptor_id"), dict):
+                payload["receptor_id"] = payload["receptor_id"].get("id")
+
+            # Sanitizacion 2: Asegurar que folio_sii sea string
+            if payload.get("folio_sii") is not None:
+                payload["folio_sii"] = str(payload["folio_sii"])
+
+            # Sanitizacion 3: Si certificado_id es None o vacio, eliminarlo para no violar constraints NULL en Postgres
+            if not payload.get("certificado_id"):
+                payload.pop("certificado_id", None)
+
+            response = self.client.table("boletas").insert(payload).execute()
+
+            if response and response.data:
+                boleta_guardada = response.data[0]
+                if contraparte_nombre:
+                    boleta_guardada["contraparte_nombre"] = contraparte_nombre
+                return boleta_guardada
+
+            logger.error(f"[Supabase] Error al insertar boleta. Respuesta vacia con payload: {payload}")
+            return None
         except Exception as e:
-            logger.error(f"Error al insertar boleta: {e}")
+            logger.error(f"[Supabase] Excepcion critica al insertar boleta: {e}", exc_info=True)
             return None
 
     def actualizar_estado_boleta(self, boleta_id: str, nuevo_estado: str) -> dict | None:
-        """Actualiza el estado de una boleta (debe ser un valor valido del enum estado_boleta)."""
+        """Actualiza el estado de una boleta."""
         if not self.client:
             for b in SupabaseService._mock_boletas:
                 if b.get("id") == boleta_id:
@@ -274,13 +297,13 @@ class SupabaseService:
 
         try:
             response = self.client.table("boletas").update({"estado": nuevo_estado}).eq("id", boleta_id).execute()
-            return response.data[0] if response.data else None
+            return response.data[0] if (response and response.data) else None
         except Exception as e:
             logger.error(f"Error al actualizar estado de boleta: {e}")
             return None
 
     def registrar_evento_historial(self, boleta_id: str, usuario_id: str, tipo_evento: str, detalle: str = "") -> dict | None:
-        """Registra un evento (emision, pago, anulacion, consulta_sii) en historial_bhe."""
+        """Registra un evento en historial_bhe."""
         if not self.client:
             evento_mock = {
                 "id": f"mock-evento-{len(SupabaseService._mock_historial) + 1}",
@@ -302,7 +325,7 @@ class SupabaseService:
                 "detalle": detalle,
             }
             response = self.client.table("historial_bhe").insert(payload).execute()
-            return response.data
+            return response.data[0] if (response and response.data) else None
         except Exception as e:
             logger.error(f"Error al registrar evento de historial: {e}")
             return None
@@ -319,14 +342,14 @@ class SupabaseService:
                     .eq("usuario_id", usuario_id)\
                     .order("fecha_emision", desc=True)\
                     .execute()
-                return [{"contraparte_nombre": r.get("receptores", {}).get("nombre", "Sin Nombre"), **r} for r in res.data]
+                return [{"contraparte_nombre": r.get("receptores", {}).get("nombre", "Sin Nombre") if r.get("receptores") else "Sin Nombre", **r} for r in (res.data or [])]
 
             elif rol == "contador":
                 res = self.client.table("boletas")\
                     .select("*, receptores(nombre)")\
                     .order("fecha_emision", desc=True)\
                     .execute()
-                return [{"contraparte_nombre": r.get("receptores", {}).get("nombre", "Sin Nombre"), **r} for r in res.data]
+                return [{"contraparte_nombre": r.get("receptores", {}).get("nombre", "Sin Nombre") if r.get("receptores") else "Sin Nombre", **r} for r in (res.data or [])]
 
             elif rol == "cliente":
                 res = self.client.table("boletas")\
@@ -334,7 +357,7 @@ class SupabaseService:
                     .eq("receptores.rut", rut)\
                     .order("fecha_emision", desc=True)\
                     .execute()
-                return [{"contraparte_nombre": "Mi Empresa / Emisor", **r} for r in res.data]
+                return [{"contraparte_nombre": "Mi Empresa / Emisor", **r} for r in (res.data or [])]
 
             return []
         except Exception as e:
