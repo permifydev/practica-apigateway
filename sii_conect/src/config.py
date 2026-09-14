@@ -14,8 +14,7 @@ APIGATEWAY_BASE_URL = os.getenv("APIGATEWAY_BASE_URL", "https://app.apigateway.c
 APIGATEWAY_TOKEN = os.getenv("APIGATEWAY_TOKEN", "token_de_prueba")
 
 # Proxy Squid (AWS Lightsail) - apigateway.cl solo acepta conexiones desde esta IP fija.
-# Formato esperado: http://usuario:clave@ip:puerto
-# Ejemplo: http://practica_APIG:PracticaDuocAPIGate@56.126.59.135:3128
+
 PROXY_URL = os.getenv("PROXY_URL")
 
 # Configuración Supabase
