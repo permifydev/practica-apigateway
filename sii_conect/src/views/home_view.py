@@ -2,6 +2,8 @@ import flet as ft
 from src.utils.constants import NAVY, BLUE, GREEN, ORANGE, PURPLE, GREY_TEXT, CARD_RADIUS, MENU_ACTIVE_BG, MENU_HOVER_BG, RED_TEXT
 from src.components.ui import stat_card, quick_action, pending_row
 
+
+
 PANTALLAS_DISPONIBLES = [
     "Inicio", "Emitir BHE", "Mis BHE", "Certificados",
     "Receptores", "Perfil", "Boletas Recibidas", "Verificar Autenticidad",
@@ -12,7 +14,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
     nombre_usuario = usuario_info.get("nombre") or state.get("nombre", "Usuario")
     rol_usuario = str(usuario_info.get("rol", "emisor")).lower()
 
-    drawer_open = {"value": False}
+    drawer_open = {"value": True}
 
     def toggle_drawer(e=None):
         drawer_open["value"] = not drawer_open["value"]
@@ -27,6 +29,10 @@ def build_home(page: ft.Page, state: dict, navigate_to):
         backdrop.opacity = 0
         backdrop.visible = False
         page.update()
+
+
+
+
 
     def go_to_screen(nombre):
         def handler(e):
@@ -117,7 +123,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
     ])
 
     drawer = ft.Container(
-        width=260, left=-300, top=0, bottom=0, bgcolor=NAVY,
+        width=260, left=-0, top=0, bottom=0, bgcolor=NAVY,
         animate_position=ft.Animation(250, ft.AnimationCurve.DECELERATE),
         content=ft.Column(
             spacing=0,
@@ -182,7 +188,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
     )
 
     backdrop = ft.Container(
-        left=0, top=0, right=0, bottom=0, bgcolor="black", opacity=0, visible=False,
+        left=0, top=0, right=0, bottom=0, bgcolor="black", opacity=0.4, visible=True,
         animate_opacity=ft.Animation(250, ft.AnimationCurve.DECELERATE),
         on_click=close_drawer,
     )

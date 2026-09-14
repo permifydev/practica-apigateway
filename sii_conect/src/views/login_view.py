@@ -35,6 +35,7 @@ def build_login(page: ft.Page, state: dict, navigate_to):
     error_text = ft.Text("", color=RED_TEXT, size=12)
 
     def do_login(e):
+    
         user_input = (email_field.value or "").strip()
         pass_input = (pass_field.value or "").strip()
 
@@ -52,6 +53,10 @@ def build_login(page: ft.Page, state: dict, navigate_to):
                 return
 
             usuario_db = db_service.obtener_perfil_propio(auth_user["id"])
+
+           
+
+            
             if not usuario_db:
                 error_text.value = (
                     "Tu cuenta existe pero no tiene un perfil asociado en 'perfiles'. "

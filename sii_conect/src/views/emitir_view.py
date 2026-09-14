@@ -226,6 +226,23 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
             msg_status.color = RED_TEXT
             page.update()
 
+    def confirmar_emision(e):
+        page.close(dialog_confirmar)
+        procesar_emision(e)
+
+    dialog_confirmar = ft.AlertDialog(
+        modal=True,
+        title=ft.Text("Confirmar emisión"),
+        content=ft.Text("¿Quieres emitir esta boleta?"),
+        actions=[
+            ft.TextButton("Cancelar", on_click=lambda e: page.close(dialog_confirmar)),
+            ft.ElevatedButton("Confirmar", on_click=confirmar_emision),
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+
+    def abrir_confirmacion(e):
+        page.open(dialog_confirmar)
     # Responsive: en pantallas angostas (celular) la tarjeta usa el ancho
     # disponible completo en vez de un valor fijo, para que nada se corte.
     ANCHO_MAXIMO_TARJETA = 450
@@ -267,7 +284,7 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                     ft.Container(width=10),
                     ft.ElevatedButton(
                         "Emitir Boleta",
-                        on_click=procesar_emision,
+                        on_click=abrir_confirmacion,
                         expand=True, height=45,
                     ),
                 ],
