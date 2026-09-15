@@ -152,3 +152,4 @@ def build_receptores(page: ft.Page, state: dict, navigate_to):
 
 
 
+

@@ -180,3 +180,4 @@ def build_boletas_recibidas(page: ft.Page, state: dict, navigate_to):
 
 
 
+
