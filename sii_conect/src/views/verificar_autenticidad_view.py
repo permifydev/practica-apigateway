@@ -130,3 +130,5 @@ def build_verificar_autenticidad(page: ft.Page, state: dict, navigate_to):
 
 
 
+
+

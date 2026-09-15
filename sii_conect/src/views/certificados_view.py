@@ -125,3 +125,5 @@ def build_certificados(page: ft.Page, state: dict, navigate_to):
 
 
 
+
+

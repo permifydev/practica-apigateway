@@ -49,7 +49,7 @@ def build_receptores(page: ft.Page, state: dict, navigate_to):
                                 ft.Text(r.get("nombre", "---"), weight=ft.FontWeight.BOLD, color=NAVY, size=13),
                                 ft.Text(f"{r.get('rut', '---')} · {r.get('email') or 'sin correo'}", size=11, color=GREY_TEXT),
                             ]),
-                            ft.IconButton(icon=ft.Icons.EDIT_OUTLINED, icon_color=NAVY, tooltip="Editar",
+                            ft.IconButton(icon=ft.icons.EDIT_OUTLINED, icon_color=NAVY, tooltip="Editar",
                                           on_click=cargar_para_editar(r)),
                         ]
                     )
@@ -146,6 +146,8 @@ def build_receptores(page: ft.Page, state: dict, navigate_to):
             ]
         )
     )
+
+
 
 
 

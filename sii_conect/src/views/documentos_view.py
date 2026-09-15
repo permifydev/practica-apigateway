@@ -69,7 +69,7 @@ def build_documentos(page: ft.Page, state: dict, navigate_to):
 
     buscador = ft.TextField(
         hint_text="Buscar por cliente, RUT o folio...",
-        prefix_icon=ft.Icons.SEARCH,
+        prefix_icon=ft.icons.SEARCH,
         color=NAVY,
         border_radius=10,
         border_color="#D8DCE3",
@@ -125,7 +125,7 @@ def build_documentos(page: ft.Page, state: dict, navigate_to):
         content=ft.Row(
             spacing=4,
             controls=[
-                ft.IconButton(icon=ft.Icons.ARROW_BACK, icon_color=NAVY, on_click=lambda e: navigate_to("Inicio")),
+                ft.IconButton(icon=ft.icons.ARROW_BACK, icon_color=NAVY, on_click=lambda e: navigate_to("Inicio")),
                 ft.Text("Mis Boletas de Honorarios", size=15, weight=ft.FontWeight.BOLD, color=NAVY),
             ],
         ),
@@ -163,6 +163,8 @@ def build_documentos(page: ft.Page, state: dict, navigate_to):
     )
 
     return ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO, expand=True, controls=[header, body])
+
+
 
 
 

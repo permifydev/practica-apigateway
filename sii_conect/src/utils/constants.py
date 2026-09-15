@@ -39,3 +39,5 @@ def tasa_retencion_vigente(anio: int | None = None) -> float:
 
 
 
+
+
