@@ -130,3 +130,6 @@ def mapear_estado_boleta(estado_api):
     }
     return mapa.get(estado_normalizado, "pendiente")
     
+
+
+

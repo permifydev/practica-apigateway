@@ -62,3 +62,6 @@ def build_perfil(page: ft.Page, state: dict, navigate_to):
             ]
         )
     )
+
+
+

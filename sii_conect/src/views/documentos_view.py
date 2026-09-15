@@ -38,7 +38,7 @@ def build_documentos(page: ft.Page, state: dict, navigate_to):
                             ft.Container(
                                 bgcolor=badge_bg,
                                 border_radius=10,
-                                padding=ft.Padding.symmetric(horizontal=8, vertical=2),
+                                padding=ft.padding.symmetric(horizontal=8, vertical=2),
                                 content=ft.Text(bhe["estado"], size=10, color=badge_color, weight=ft.FontWeight.BOLD),
                             ),
                         ],
@@ -121,7 +121,7 @@ def build_documentos(page: ft.Page, state: dict, navigate_to):
 
     header = ft.Container(
         bgcolor="white",
-        padding=ft.Padding.symmetric(horizontal=16, vertical=14),
+        padding=ft.padding.symmetric(horizontal=16, vertical=14),
         content=ft.Row(
             spacing=4,
             controls=[
@@ -149,7 +149,7 @@ def build_documentos(page: ft.Page, state: dict, navigate_to):
     )
 
     body = ft.Container(
-        padding=ft.Padding.symmetric(horizontal=20, vertical=16),
+        padding=ft.padding.symmetric(horizontal=20, vertical=16),
         content=ft.Column(
             spacing=14,
             horizontal_alignment=ft.CrossAxisAlignment.START,
@@ -163,3 +163,6 @@ def build_documentos(page: ft.Page, state: dict, navigate_to):
     )
 
     return ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO, expand=True, controls=[header, body])
+
+
+

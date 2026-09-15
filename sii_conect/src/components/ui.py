@@ -52,7 +52,7 @@ def pending_row(empresa, doc, monto, estado, dias):
     estado_bg = RED_BG if estado == "Vencida" else YELLOW_BG
     estado_color = RED_TEXT if estado == "Vencida" else YELLOW_TEXT
     return ft.Container(
-        padding=ft.Padding.symmetric(vertical=10),
+        padding=ft.padding.symmetric(vertical=10),
         border=ft.Border.only(bottom=ft.BorderSide(1, "#EEF0F3")),
         content=ft.Row(
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -72,7 +72,7 @@ def pending_row(empresa, doc, monto, estado, dias):
                         ft.Container(
                             bgcolor=estado_bg,
                             border_radius=12,
-                            padding=ft.Padding.symmetric(horizontal=10, vertical=3),
+                            padding=ft.padding.symmetric(horizontal=10, vertical=3),
                             content=ft.Text(estado, size=11, color=estado_color, weight=ft.FontWeight.BOLD),
                         ),
                         ft.Text(dias, size=11, color=GREY_TEXT),
@@ -81,3 +81,6 @@ def pending_row(empresa, doc, monto, estado, dias):
             ],
         ),
     )
+
+
+

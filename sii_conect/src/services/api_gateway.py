@@ -449,3 +449,6 @@ class ApiGatewayClient:
             return self._parse_response(response)
         except requests.RequestException as e:
             raise ApiGatewayError(f"Error de conexión con apigateway.cl: {str(e)}")
+
+
+

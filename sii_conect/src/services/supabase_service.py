@@ -363,3 +363,6 @@ class SupabaseService:
         except Exception as e:
             logger.error(f"Error al consultar boletas por rol: {e}")
             return []
+
+
+

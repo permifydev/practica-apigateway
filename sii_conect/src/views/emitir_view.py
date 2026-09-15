@@ -329,3 +329,6 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
     )
 
 build_emitir = build_emitir_bhe
+
+
+

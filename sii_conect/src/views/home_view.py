@@ -45,7 +45,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
 
     def menu_section_label(text):
         return ft.Container(
-            padding=ft.Padding.symmetric(horizontal=20, vertical=8),
+            padding=ft.padding.symmetric(horizontal=20, vertical=8),
             content=ft.Text(text, size=11, color="#8792AC", weight=ft.FontWeight.BOLD),
         )
 
@@ -61,15 +61,15 @@ def build_home(page: ft.Page, state: dict, navigate_to):
             row_controls.append(
                 ft.Container(
                     bgcolor=BLUE, border_radius=8,
-                    padding=ft.Padding.symmetric(horizontal=7, vertical=2),
+                    padding=ft.padding.symmetric(horizontal=7, vertical=2),
                     content=ft.Text(badge, size=9, color="white", weight=ft.FontWeight.BOLD),
                 )
             )
         
         item = ft.Container(
             on_click=go_to_screen(label),
-            padding=ft.Padding.symmetric(horizontal=16, vertical=11),
-            margin=ft.Margin.symmetric(horizontal=8),
+            padding=ft.padding.symmetric(horizontal=16, vertical=11),
+            margin=ft.margin.symmetric(horizontal=8),
             border_radius=10,
             bgcolor=MENU_ACTIVE_BG if active else None,
             animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
@@ -129,7 +129,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
             spacing=0,
             controls=[
                 ft.Container(
-                    padding=ft.Padding.symmetric(horizontal=18, vertical=18),
+                    padding=ft.padding.symmetric(horizontal=18, vertical=18),
                     border=ft.Border.only(bottom=ft.BorderSide(1, "#1C2E5C")),
                     content=ft.Row(
                         spacing=10,
@@ -154,7 +154,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
                     content=ft.Column(spacing=2, scroll=ft.ScrollMode.AUTO, controls=menu_controls),
                 ),
                 ft.Container(
-                    padding=ft.Padding.symmetric(horizontal=16, vertical=14),
+                    padding=ft.padding.symmetric(horizontal=16, vertical=14),
                     border=ft.Border.only(top=ft.BorderSide(1, "#1C2E5C")),
                     content=ft.Row(
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -195,7 +195,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
 
     header = ft.Container(
         bgcolor="white",
-        padding=ft.Padding.symmetric(horizontal=16, vertical=14),
+        padding=ft.padding.symmetric(horizontal=16, vertical=14),
         content=ft.Row(
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             controls=[
@@ -248,7 +248,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
         ]
 
     body = ft.Container(
-        padding=ft.Padding.symmetric(horizontal=20, vertical=16),
+        padding=ft.padding.symmetric(horizontal=20, vertical=16),
         content=ft.Column(
             spacing=14, horizontal_alignment=ft.CrossAxisAlignment.START,
             controls=[
@@ -299,4 +299,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
 
     page_content = ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO, expand=True, controls=[header, body])
     return ft.Stack(expand=True, controls=[page_content, backdrop, drawer])
+
+
+
 

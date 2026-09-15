@@ -36,3 +36,6 @@ def tasa_retencion_vigente(anio: int | None = None) -> float:
         return TASA_RETENCION_POR_ANIO[anio]
     ultimo_anio = max(TASA_RETENCION_POR_ANIO)
     return TASA_RETENCION_POR_ANIO[ultimo_anio]
+
+
+
