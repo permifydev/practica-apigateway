@@ -1,5 +1,4 @@
-
-supabase
-requests
+flet==0.28.3
 python-dotenv
-flet==0.23.2
+requests
+supabase
