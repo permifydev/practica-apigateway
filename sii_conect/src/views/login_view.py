@@ -96,7 +96,7 @@ def build_login(page: ft.Page, state: dict, navigate_to):
                     controls=[
                         ft.Container(
                             width=44, height=44, bgcolor=NAVY, border_radius=10,
-                            alignment=ft.Alignment.CENTER,
+                            alignment=ft.alignment.CENTER,
                             content=ft.Text("S", color="white", size=20, weight=ft.FontWeight.BOLD),
                         ),
                         ft.Container(width=10),
