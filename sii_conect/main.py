@@ -30,7 +30,7 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.LIGHT
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
 
-    state = {"nombre": "Priscila", "folio_boleta": 1204}
+    state = {}
 
     def navigate_to(screen_name):
         page.controls.clear()

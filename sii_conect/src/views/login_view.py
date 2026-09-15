@@ -2,9 +2,9 @@ import flet as ft
 from src.utils.constants import NAVY, GREY_TEXT, RED_TEXT, CARD_RADIUS
 from src.services.supabase_service import SupabaseService
 
-db_service = SupabaseService()
-
 def build_login(page: ft.Page, state: dict, navigate_to):
+    db_service = SupabaseService()
+
     def ir_a_password(e):
         pass_field.focus()
 
@@ -35,7 +35,6 @@ def build_login(page: ft.Page, state: dict, navigate_to):
     error_text = ft.Text("", color=RED_TEXT, size=12)
 
     def do_login(e):
-    
         user_input = (email_field.value or "").strip()
         pass_input = (pass_field.value or "").strip()
 
@@ -45,7 +44,6 @@ def build_login(page: ft.Page, state: dict, navigate_to):
             return
 
         if db_service.client:
-            # Modo real: autentica contra Supabase Auth y luego trae el perfil propio (RLS: auth.uid()).
             auth_user = db_service.iniciar_sesion(user_input, pass_input)
             if not auth_user:
                 error_text.value = "Correo o contraseña incorrectos"
@@ -53,10 +51,6 @@ def build_login(page: ft.Page, state: dict, navigate_to):
                 return
 
             usuario_db = db_service.obtener_perfil_propio(auth_user["id"])
-
-           
-
-            
             if not usuario_db:
                 error_text.value = (
                     "Tu cuenta existe pero no tiene un perfil asociado en 'perfiles'. "
@@ -65,7 +59,6 @@ def build_login(page: ft.Page, state: dict, navigate_to):
                 page.update()
                 return
         else:
-            # Modo simulacion (sin credenciales reales de Supabase): no valida password.
             usuario_db = db_service.validar_usuario(user_input)
             if not usuario_db:
                 error_text.value = "Acceso denegado: Usuario no registrado en el sistema"
@@ -73,8 +66,9 @@ def build_login(page: ft.Page, state: dict, navigate_to):
                 return
 
         state["logged_in"] = True
-        state["usuario"] = usuario_db  # Mantiene dict completo con ID, Nombre, RUT y Rol
+        state["usuario"] = usuario_db
         state["nombre"] = usuario_db.get("nombre", "Usuario")
+        page.session.set("db_service", db_service)
         error_text.value = ""
         navigate_to("Inicio")
 
@@ -96,7 +90,7 @@ def build_login(page: ft.Page, state: dict, navigate_to):
                     controls=[
                         ft.Container(
                             width=44, height=44, bgcolor=NAVY, border_radius=10,
-                            alignment=ft.alignment.center,
+                            alignment=ft.alignment.Alignment(0, 0),
                             content=ft.Text("S", color="white", size=20, weight=ft.FontWeight.BOLD),
                         ),
                         ft.Container(width=10),
@@ -127,13 +121,12 @@ def build_login(page: ft.Page, state: dict, navigate_to):
                             error_text,
                             ft.Container(height=6),
                             ft.ElevatedButton(
-                                content=ft.Text("Ingresar",width=ft.FontWeight.BOLD,size=15),
+                                content=ft.Text("Ingresar", weight=ft.FontWeight.BOLD, size=15),
                                 width=400,
                                 height=48,
                                 style=ft.ButtonStyle(
                                     bgcolor=NAVY, color="white",
                                     shape=ft.RoundedRectangleBorder(radius=10),
-                                    
                                 ),
                                 on_click=do_login,
                             ),
@@ -145,9 +138,3 @@ def build_login(page: ft.Page, state: dict, navigate_to):
             ],
         ),
     )
-
-
-
-
-
-

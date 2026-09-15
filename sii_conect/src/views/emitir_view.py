@@ -46,7 +46,7 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
     if rol != "emisor":
         return ft.Container(
             padding=40,
-            alignment=ft.alignment.center,
+            alignment=ft.alignment.Alignment(0, 0),
             content=ft.Column(
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,

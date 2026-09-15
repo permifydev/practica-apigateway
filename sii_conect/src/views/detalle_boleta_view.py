@@ -21,7 +21,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
     if not boleta:
         return ft.Container(
             padding=40,
-            alignment=ft.alignment.center,
+            alignment=ft.alignment.Alignment(0, 0),
             content=ft.Column(
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
@@ -56,7 +56,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
     info_clave = ft.Row(
         visible=clave_ya_guardada,
         controls=[
-            ft.Icon(ft.icons.CHECK_CIRCLE, color=GREEN, size=16),
+            ft.Icon(ft.Icons.CHECK_CIRCLE, color=GREEN, size=16),
             ft.Text("Clave SII verificada para esta sesion.", size=12, color=GREEN),
         ]
     )

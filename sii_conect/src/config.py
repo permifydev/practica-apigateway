@@ -5,8 +5,8 @@ from supabase import create_client, Client
 # Cargar variables desde el archivo .env
 load_dotenv()
 
-# Modo de prueba/simulación
-MOCK_MODE = os.getenv("MOCK_MODE", "True") == "True"
+# Modo de prueba/simulación (False = pruebas reales contra API Gateway y Supabase)
+MOCK_MODE = os.getenv("MOCK_MODE", "False") == "True"
 
 # Configuración API Gateway
 # La URL base de la API v2 es "https://app.apigateway.cl"

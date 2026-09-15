@@ -69,7 +69,7 @@ def build_documentos(page: ft.Page, state: dict, navigate_to):
 
     buscador = ft.TextField(
         hint_text="Buscar por cliente, RUT o folio...",
-        prefix_icon=ft.icons.SEARCH,
+        prefix_icon=ft.Icons.SEARCH,
         color=NAVY,
         border_radius=10,
         border_color="#D8DCE3",
@@ -80,7 +80,7 @@ def build_documentos(page: ft.Page, state: dict, navigate_to):
     filtro_estado = ft.Dropdown(
         value="Todos",
         width=140,
-        height=40,
+        dense=True,
         options=[
             ft.dropdown.Option("Todos"),
             ft.dropdown.Option("Vigente"),
@@ -104,7 +104,7 @@ def build_documentos(page: ft.Page, state: dict, navigate_to):
             list_container.controls.append(
                 ft.Container(
                     padding=20,
-                    alignment=ft.alignment.center,
+                    alignment=ft.alignment.Alignment(0, 0),
                     content=ft.Text("No se encontraron boletas", color=GREY_TEXT, size=13),
                 )
             )
@@ -125,7 +125,7 @@ def build_documentos(page: ft.Page, state: dict, navigate_to):
         content=ft.Row(
             spacing=4,
             controls=[
-                ft.IconButton(icon=ft.icons.ARROW_BACK, icon_color=NAVY, on_click=lambda e: navigate_to("Inicio")),
+                ft.IconButton(icon=ft.Icons.ARROW_BACK, icon_color=NAVY, on_click=lambda e: navigate_to("Inicio")),
                 ft.Text("Mis Boletas de Honorarios", size=15, weight=ft.FontWeight.BOLD, color=NAVY),
             ],
         ),

@@ -49,7 +49,7 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
                         ft.DataCell(ft.Text(monto)),
                         ft.DataCell(ft.Text(str(b.get("estado", "pendiente")))),
                     ],
-                    on_select_change=abrir_detalle(b),
+                    on_select_changed=abrir_detalle(b),
                 )
             )
         return filas if filas else [

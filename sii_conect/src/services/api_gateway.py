@@ -1,8 +1,7 @@
 import logging
-import random
 from datetime import datetime
 import requests
-from src.config import APIGATEWAY_BASE_URL, APIGATEWAY_TOKEN, MOCK_MODE, PROXY_URL
+from src.config import APIGATEWAY_BASE_URL, APIGATEWAY_TOKEN, PROXY_URL
 
 logger = logging.getLogger(__name__)
 
@@ -14,25 +13,18 @@ class ApiGatewayError(Exception):
 
 class ApiGatewayClient:
     def __init__(self, token: str = APIGATEWAY_TOKEN, base_url: str = APIGATEWAY_BASE_URL,
-                 mock: bool = MOCK_MODE, proxy_url: str | None = PROXY_URL):
+                 proxy_url: str | None = PROXY_URL):
         self.token = token
         self.base_url = base_url.rstrip("/") if base_url else "https://app.apigateway.cl"
-        self.mock = mock
         self.proxy_url = proxy_url
         self.session = requests.Session()
 
-        # apigateway.cl solo permite consultas desde la IP fija del proxy Squid (Lightsail).
-        # Sin esto, las peticiones salen con la IP real de la maquina/servidor (ej. la IP
-        # dinamica de Render), que no esta registrada ni tiene creditos asociados, y
-        # apigateway.cl responde con "Creditos insuficientes ... la IP de origen esta en
-        # uso por otra conexion sin creditos". No se aplica en modo mock porque ahi no
-        # se hace ninguna llamada de red real.
-        if self.proxy_url and not self.mock:
+        if self.proxy_url:
             self.session.proxies = {"http": self.proxy_url, "https": self.proxy_url}
             logger.info("Proxy Squid configurado para las llamadas a apigateway.cl")
-        elif not self.mock:
+        else:
             logger.warning(
-                "MOCK_MODE=False pero no hay PROXY_URL configurado: las llamadas a "
+                "No hay PROXY_URL configurado: las llamadas a "
                 "apigateway.cl saldran con la IP directa de este servidor, lo que "
                 "probablemente sea rechazado si esa IP no esta registrada."
             )
@@ -132,25 +124,7 @@ class ApiGatewayClient:
         }
 
     def emitir_boleta(self, rut: str, clave: str, boleta_payload: dict) -> dict:
-        """Emite boleta. En modo simulación (mock=True), genera un folio ficticio sin llamar a la red."""
-        if self.mock:
-            folio_falso = random.randint(100, 9999)
-            logger.info(f"[MODO MOCK] Simulando emisión de boleta Folio {folio_falso}")
-
-            monto_bruto = sum(item.get("MontoItem", 0) for item in boleta_payload.get("Detalle", []))
-
-            return {
-                "folio": folio_falso,
-                "codigo": f"COD-{folio_falso}",
-                "estado": "EMITIDA",
-                "fecha_emision": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "rut_emisor": rut,
-                "rut_receptor": boleta_payload.get("Encabezado", {}).get("Receptor", {}).get("RUTRecep", ""),
-                "monto_bruto": monto_bruto,
-                "pdf_url": f"https://apigateway.cl/mock/pdf/{folio_falso}.pdf",
-                "codigo_verificacion": f"MOCK-{folio_falso}-TEST"
-            }
-
+        """Emite boleta. Siempre realiza llamada real a API Gateway."""
         url = f"{self.base_url}/api/v2/sii/bhe/emitidas/emitir"
         body = self._auth_block(rut, clave)
         body["boleta"] = boleta_payload
@@ -203,19 +177,6 @@ class ApiGatewayClient:
         Util para reconciliar el registro local (Supabase) contra el estado oficial en el SII:
         por ejemplo detectar boletas anuladas directamente en el portal del SII, o folios
         emitidos que no llegaron a guardarse localmente por un error de red."""
-        if self.mock:
-            return {
-                "boletas": [
-                    {
-                        "folio": 1204, "codigo": "COD-1204", "fecha": "2026-08-20",
-                        "receptor": "76192083-9", "razon_social_receptor": "Consultora Mock SpA",
-                        "monto_bruto": 500000, "monto_retencion": 76250, "monto_liquido": 423750,
-                        "estado": "N",
-                    },
-                ],
-                "pagina": pagina,
-            }
-
         url = f"{self.base_url}/api/v2/sii/bhe/emitidas/documentos/{emisor}/{periodo}"
         body = self._auth_block(rut, clave)
 
@@ -259,9 +220,6 @@ class ApiGatewayClient:
         """Anula una boleta previamente emitida.
         causa: 1 = no se efectuó el pago, 2 = no se prestó el servicio, 3 = error de digitación
         """
-        if self.mock:
-            return {"folio": folio, "estado": "ANULADA", "mensaje": "Boleta anulada exitosamente (Modo Mock)"}
-
         url = f"{self.base_url}/api/v2/sii/bhe/emitidas/anular/{emisor}/{folio}"
         body = self._auth_block(rut, clave)
 
@@ -283,16 +241,6 @@ class ApiGatewayClient:
     def descargar_pdf(self, rut: str, clave: str, codigo: str) -> dict:
         """Obtiene el PDF de una boleta emitida (código asignado por el SII, no el folio).
         Devuelve {"pdf_bytes": bytes|None, "data": dict|None} - ver _handle_pdf_response."""
-        if self.mock:
-            return {
-                "pdf_bytes": None,
-                "data": {
-                    "codigo": codigo,
-                    "pdf_url": f"https://apigateway.cl/mock/pdf/{codigo}.pdf",
-                    "mensaje": "PDF generado (Modo Mock)"
-                }
-            }
-
         url = f"{self.base_url}/api/v2/sii/bhe/emitidas/pdf/{codigo}"
         body = self._auth_block(rut, clave)
 
@@ -306,12 +254,6 @@ class ApiGatewayClient:
     def enviar_email(self, rut: str, clave: str, codigo: str, email_destino: str | None = None) -> dict:
         """Envía la boleta emitida por correo. Si no se indica email_destino, usa el correo
         que el SII tenga registrado por defecto para el receptor."""
-        if self.mock:
-            return {
-                "codigo": codigo,
-                "mensaje": f"Correo enviado a {email_destino or 'receptor registrado en el SII'} (Modo Mock)"
-            }
-
         url = f"{self.base_url}/api/v2/sii/bhe/emitidas/email/{codigo}"
         body = self._auth_block(rut, clave)
         if email_destino:
@@ -334,23 +276,6 @@ class ApiGatewayClient:
 
     def listar_recibidas(self, rut: str, clave: str, receptor: str, periodo: str, pagina: int = 1) -> dict:
         """Lista boletas recibidas por el RUT receptor en un periodo (YYYYMM o YYYYMMDD)."""
-        if self.mock:
-            return {
-                "boletas": [
-                    {
-                        "folio": 5001, "codigo": "COD-5001", "emisor": "76192083-9",
-                        "razon_social_emisor": "Consultora Mock SpA", "fecha": "2026-08-15",
-                        "monto_bruto": 300000, "estado": "N",
-                    },
-                    {
-                        "folio": 5002, "codigo": "COD-5002", "emisor": "77654321-0",
-                        "razon_social_emisor": "Servicios Mock Ltda", "fecha": "2026-08-20",
-                        "monto_bruto": 150000, "estado": "R",
-                    },
-                ],
-                "pagina": pagina,
-            }
-
         url = f"{self.base_url}/api/v2/sii/bhe/recibidas/documentos/{receptor}/{periodo}"
         body = self._auth_block(rut, clave)
 
@@ -370,16 +295,6 @@ class ApiGatewayClient:
     def descargar_pdf_recibida(self, rut: str, clave: str, codigo: str) -> dict:
         """Obtiene el PDF de una boleta recibida (código, no folio).
         Devuelve {"pdf_bytes": bytes|None, "data": dict|None} - ver _handle_pdf_response."""
-        if self.mock:
-            return {
-                "pdf_bytes": None,
-                "data": {
-                    "codigo": codigo,
-                    "pdf_url": f"https://apigateway.cl/mock/pdf/recibida/{codigo}.pdf",
-                    "mensaje": "PDF generado (Modo Mock)"
-                }
-            }
-
         url = f"{self.base_url}/api/v2/sii/bhe/recibidas/pdf/{codigo}"
         body = self._auth_block(rut, clave)
 
@@ -392,9 +307,6 @@ class ApiGatewayClient:
 
     def observar_recibida(self, rut: str, clave: str, emisor: str, folio: str, causa: int) -> dict:
         """Observa una boleta recibida. causa: 1 = no reconoce relacion comercial, 2 = no reconoce al emisor."""
-        if self.mock:
-            return {"folio": folio, "estado": "OBSERVADA", "mensaje": "Boleta observada correctamente (Modo Mock)"}
-
         url = f"{self.base_url}/api/v2/sii/bhe/recibidas/observar/{emisor}/{folio}"
         body = self._auth_block(rut, clave)
 
@@ -418,15 +330,6 @@ class ApiGatewayClient:
                                 periodo: str | None = None, folio: str | None = None) -> dict:
         """Verifica la autenticidad de una BHE. Modo excluyente: o codigo_barras, o
         (emisor, receptor, periodo YYYY-MM-DD, folio)."""
-        if self.mock:
-            return {
-                "valido": True,
-                "emisor": emisor or "76192083-9",
-                "folio": folio or "9001",
-                "pdf_url": "https://apigateway.cl/mock/pdf/autenticidad.pdf",
-                "mensaje": "Boleta encontrada y coincide con los datos consultados (Modo Mock)",
-            }
-
         url = f"{self.base_url}/api/v2/sii/bhe/consultas_por_terceros"
         body = self._auth_block(rut, clave)
         if codigo_barras:
