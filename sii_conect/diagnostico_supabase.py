@@ -22,3 +22,4 @@ try:
 except Exception as e:
     print(f"\nConexion real: FALLO. Error exacto:\n  {e}\n")
     print("Revisa: URL/KEY correctas, proyecto Supabase activo, y que la tabla 'perfiles' exista.")
+

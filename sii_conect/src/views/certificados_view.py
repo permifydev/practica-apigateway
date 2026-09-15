@@ -12,7 +12,7 @@ def build_certificados(page: ft.Page, state: dict, navigate_to):
     if rol != "emisor":
         return ft.Container(
             padding=40,
-            alignment=ft.Alignment.CENTER,
+            alignment=ft.alignment.center,
             content=ft.Column(
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[

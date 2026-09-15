@@ -104,7 +104,7 @@ def build_documentos(page: ft.Page, state: dict, navigate_to):
             list_container.controls.append(
                 ft.Container(
                     padding=20,
-                    alignment=ft.Alignment.CENTER,
+                    alignment=ft.alignment.center,
                     content=ft.Text("No se encontraron boletas", color=GREY_TEXT, size=13),
                 )
             )

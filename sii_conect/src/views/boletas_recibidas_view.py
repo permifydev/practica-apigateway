@@ -21,7 +21,7 @@ def build_boletas_recibidas(page: ft.Page, state: dict, navigate_to):
     if rol != "cliente":
         return ft.Container(
             padding=40,
-            alignment=ft.Alignment.CENTER,
+            alignment=ft.alignment.center,
             content=ft.Column(
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[

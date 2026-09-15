@@ -136,7 +136,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
                         controls=[
                             ft.Container(
                                 width=34, height=34, bgcolor=BLUE, border_radius=9,
-                                alignment=ft.Alignment.CENTER,
+                                alignment=ft.alignment.center,
                                 content=ft.Text("S", color="white", size=15, weight=ft.FontWeight.BOLD),
                             ),
                             ft.Column(
@@ -164,7 +164,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
                                 controls=[
                                     ft.Container(
                                         width=32, height=32, bgcolor=BLUE, border_radius=16,
-                                        alignment=ft.Alignment.CENTER,
+                                        alignment=ft.alignment.center,
                                         content=ft.Text(nombre_usuario[:2].upper(), color="white", size=12, weight=ft.FontWeight.BOLD),
                                     ),
                                     ft.Column(
@@ -299,3 +299,4 @@ def build_home(page: ft.Page, state: dict, navigate_to):
 
     page_content = ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO, expand=True, controls=[header, body])
     return ft.Stack(expand=True, controls=[page_content, backdrop, drawer])
+

@@ -21,7 +21,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
     if not boleta:
         return ft.Container(
             padding=40,
-            alignment=ft.Alignment.CENTER,
+            alignment=ft.alignment.center,
             content=ft.Column(
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
@@ -349,3 +349,4 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
             ]
         )
     )
+

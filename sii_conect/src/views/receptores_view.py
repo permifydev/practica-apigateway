@@ -13,7 +13,7 @@ def build_receptores(page: ft.Page, state: dict, navigate_to):
     if rol not in ("emisor", "contador"):
         return ft.Container(
             padding=40,
-            alignment=ft.Alignment.CENTER,
+            alignment=ft.alignment.center,
             content=ft.Column(
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
