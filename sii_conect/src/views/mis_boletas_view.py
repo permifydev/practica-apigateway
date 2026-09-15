@@ -184,3 +184,4 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
 
 
 
+

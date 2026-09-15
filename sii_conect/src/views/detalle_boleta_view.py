@@ -355,3 +355,4 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
 
 
 
+
