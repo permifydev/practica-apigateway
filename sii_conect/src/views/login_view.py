@@ -96,7 +96,7 @@ def build_login(page: ft.Page, state: dict, navigate_to):
                     controls=[
                         ft.Container(
                             width=44, height=44, bgcolor=NAVY, border_radius=10,
-                            alignment=ft.alignment.center,
+                            alignment=ft.alignment.CENTER,
                             content=ft.Text("S", color="white", size=20, weight=ft.FontWeight.BOLD),
                         ),
                         ft.Container(width=10),
@@ -127,13 +127,13 @@ def build_login(page: ft.Page, state: dict, navigate_to):
                             error_text,
                             ft.Container(height=6),
                             ft.ElevatedButton(
-                                content=ft.Text("Ingresar"),
+                                content=ft.Text("Ingresar",width=ft.FontWeight.BOLD,size=15),
                                 width=400,
                                 height=48,
                                 style=ft.ButtonStyle(
                                     bgcolor=NAVY, color="white",
                                     shape=ft.RoundedRectangleBorder(radius=10),
-                                    text_style=ft.TextStyle(weight=ft.FontWeight.BOLD, size=15),
+                                    
                                 ),
                                 on_click=do_login,
                             ),
