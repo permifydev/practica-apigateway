@@ -31,7 +31,6 @@ def quick_action(text, filled=False, on_click=None):
                 bgcolor=NAVY,
                 color="white",
                 shape=ft.RoundedRectangleBorder(radius=10),
-                text_style=ft.TextStyle(weight=ft.FontWeight.BOLD, size=14),
             ),
             on_click=on_click,
         )
@@ -43,7 +42,6 @@ def quick_action(text, filled=False, on_click=None):
             color=NAVY,
             side=ft.BorderSide(1, "#D8DCE3"),
             shape=ft.RoundedRectangleBorder(radius=10),
-            text_style=ft.TextStyle(weight=ft.FontWeight.W_600, size=14),
         ),
         on_click=on_click,
     )
