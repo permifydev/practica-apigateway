@@ -68,8 +68,8 @@ def build_home(page: ft.Page, state: dict, navigate_to):
         
         item = ft.Container(
             on_click=go_to_screen(label),
-            padding=ft.padding.symmetric(horizontal=16, vertical=11),
-            margin=ft.margin.symmetric(horizontal=8),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=11),
+            margin=ft.Margin.symmetric(horizontal=8),
             border_radius=10,
             bgcolor=MENU_ACTIVE_BG if active else None,
             animate=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
@@ -88,38 +88,38 @@ def build_home(page: ft.Page, state: dict, navigate_to):
     menu_controls = [
         ft.Container(height=8),
         menu_section_label("PRINCIPAL"),
-        menu_item(ft.icons.HOME_OUTLINED, "Inicio", active=True),
+        menu_item(ft.Icons.HOME_OUTLINED, "Inicio", active=True),
     ]
 
     if rol_usuario == "emisor":
         menu_controls.extend([
-            menu_item(ft.icons.ADD_CIRCLE_OUTLINE, "Emitir BHE"),
-            menu_item(ft.icons.DESCRIPTION_OUTLINED, "Mis BHE"),
+            menu_item(ft.Icons.ADD_CIRCLE_OUTLINE, "Emitir BHE"),
+            menu_item(ft.Icons.DESCRIPTION_OUTLINED, "Mis BHE"),
             menu_section_label("HERRAMIENTAS"),
-            menu_item(ft.icons.SHIELD_OUTLINED, "Certificados"),
-            menu_item(ft.icons.PEOPLE_OUTLINE, "Receptores"),
-            menu_item(ft.icons.VERIFIED_OUTLINED, "Verificar Autenticidad"),
+            menu_item(ft.Icons.SHIELD_OUTLINED, "Certificados"),
+            menu_item(ft.Icons.PEOPLE_OUTLINE, "Receptores"),
+            menu_item(ft.Icons.VERIFIED_OUTLINED, "Verificar Autenticidad"),
         ])
     elif rol_usuario == "contador":
         menu_controls.extend([
-            menu_item(ft.icons.DESCRIPTION_OUTLINED, "Mis BHE"),
+            menu_item(ft.Icons.DESCRIPTION_OUTLINED, "Mis BHE"),
             menu_section_label("HERRAMIENTAS"),
-            menu_item(ft.icons.PEOPLE_OUTLINE, "Receptores"),
-            menu_item(ft.icons.VERIFIED_OUTLINED, "Verificar Autenticidad"),
-            menu_item(ft.icons.BAR_CHART, "Auditoría"),
+            menu_item(ft.Icons.PEOPLE_OUTLINE, "Receptores"),
+            menu_item(ft.Icons.VERIFIED_OUTLINED, "Verificar Autenticidad"),
+            menu_item(ft.Icons.BAR_CHART, "Auditoría"),
         ])
     elif rol_usuario == "cliente":
         menu_controls.extend([
-            menu_item(ft.icons.INBOX_OUTLINED, "Mis BHE"),
-            menu_item(ft.icons.FACT_CHECK_OUTLINED, "Boletas Recibidas"),
+            menu_item(ft.Icons.INBOX_OUTLINED, "Mis BHE"),
+            menu_item(ft.Icons.FACT_CHECK_OUTLINED, "Boletas Recibidas"),
             menu_section_label("HERRAMIENTAS"),
-            menu_item(ft.icons.VERIFIED_OUTLINED, "Verificar Autenticidad"),
+            menu_item(ft.Icons.VERIFIED_OUTLINED, "Verificar Autenticidad"),
         ])
 
     menu_controls.extend([
         ft.Container(height=10),
         menu_section_label("CUENTA"),
-        menu_item(ft.icons.PERSON_OUTLINE, "Perfil"),
+        menu_item(ft.Icons.PERSON_OUTLINE, "Perfil"),
     ])
 
     drawer = ft.Container(
@@ -129,8 +129,8 @@ def build_home(page: ft.Page, state: dict, navigate_to):
             spacing=0,
             controls=[
                 ft.Container(
-                    padding=ft.padding.symmetric(horizontal=18, vertical=18),
-                    border=ft.border.only(bottom=ft.BorderSide(1, "#1C2E5C")),
+                    padding=ft.Padding.symmetric(horizontal=18, vertical=18),
+                    border=ft.Border.only(bottom=ft.BorderSide(1, "#1C2E5C")),
                     content=ft.Row(
                         spacing=10,
                         controls=[
@@ -154,8 +154,8 @@ def build_home(page: ft.Page, state: dict, navigate_to):
                     content=ft.Column(spacing=2, scroll=ft.ScrollMode.AUTO, controls=menu_controls),
                 ),
                 ft.Container(
-                    padding=ft.padding.symmetric(horizontal=16, vertical=14),
-                    border=ft.border.only(top=ft.BorderSide(1, "#1C2E5C")),
+                    padding=ft.Padding.symmetric(horizontal=16, vertical=14),
+                    border=ft.Border.only(top=ft.BorderSide(1, "#1C2E5C")),
                     content=ft.Row(
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                         controls=[
@@ -177,7 +177,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
                                 ],
                             ),
                             ft.IconButton(
-                                icon=ft.icons.LOGOUT, icon_color="#B7C0D8", icon_size=17,
+                                icon=ft.Icons.LOGOUT, icon_color="#B7C0D8", icon_size=17,
                                 tooltip="Cerrar sesión", on_click=lambda e: navigate_to("Login"),
                             ),
                         ],
@@ -195,14 +195,14 @@ def build_home(page: ft.Page, state: dict, navigate_to):
 
     header = ft.Container(
         bgcolor="white",
-        padding=ft.padding.symmetric(horizontal=16, vertical=14),
+        padding=ft.Padding.symmetric(horizontal=16, vertical=14),
         content=ft.Row(
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             controls=[
                 ft.Row(
                     spacing=4,
                     controls=[
-                        ft.IconButton(icon=ft.icons.MENU, icon_color=NAVY, on_click=toggle_drawer),
+                        ft.IconButton(icon=ft.Icons.MENU, icon_color=NAVY, on_click=toggle_drawer),
                         ft.Text("Inicio", size=15, weight=ft.FontWeight.BOLD, color=NAVY),
                     ],
                 ),
@@ -211,12 +211,12 @@ def build_home(page: ft.Page, state: dict, navigate_to):
                     controls=[
                         ft.Stack(
                             controls=[
-                                ft.Icon(ft.icons.NOTIFICATIONS_OUTLINED, color=NAVY),
+                                ft.Icon(ft.Icons.NOTIFICATIONS_OUTLINED, color=NAVY),
                                 ft.Container(width=8, height=8, bgcolor=RED_TEXT, border_radius=4, left=10, top=0),
                             ]
                         ),
                         ft.IconButton(
-                            icon=ft.icons.LOGOUT, icon_color=NAVY, icon_size=18,
+                            icon=ft.Icons.LOGOUT, icon_color=NAVY, icon_size=18,
                             tooltip="Cerrar sesión", on_click=lambda e: navigate_to("Login"),
                         ),
                     ],
@@ -248,7 +248,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
         ]
 
     body = ft.Container(
-        padding=ft.padding.symmetric(horizontal=20, vertical=16),
+        padding=ft.Padding.symmetric(horizontal=20, vertical=16),
         content=ft.Column(
             spacing=14, horizontal_alignment=ft.CrossAxisAlignment.START,
             controls=[
@@ -299,9 +299,4 @@ def build_home(page: ft.Page, state: dict, navigate_to):
 
     page_content = ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO, expand=True, controls=[header, body])
     return ft.Stack(expand=True, controls=[page_content, backdrop, drawer])
-
-
-
-
-
 
