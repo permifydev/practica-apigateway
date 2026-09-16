@@ -117,7 +117,10 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
                 rut=rut_objetivo, clave=clave_actual(), emisor=rut_objetivo, periodo=periodo_actual
             )
             boletas_sii = respuesta.get("boletas", [])
+            import json
+            print("DEBUG SII RAW:", json.dumps(boletas_sii, ensure_ascii=False, indent=2))
             folios_sii = {str(b.get("folio")): b for b in boletas_sii}
+            
             folios_locales = {str(b.get("folio_sii")): b for b in boletas_del_emisor}
 
             faltantes_local = [f for f in folios_sii if f not in folios_locales]
