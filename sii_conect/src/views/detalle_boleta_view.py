@@ -1,3 +1,4 @@
+from datetime import date
 import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, GREY_TEXT, CARD_RADIUS
 from src.services.supabase_service import SupabaseService
@@ -136,11 +137,32 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
             cambiar_clave_btn.visible = True
         return True
 
+    def obtener_codigo_real():
+        """El 'codigo' guardado al emitir (respuesta_sii.codigo) viene de un campo
+        adivinado (CodigoInferior/CodigoBarras) que resulto no ser el que el SII espera
+        para pdf/email. El listado (listar_emitidas) SI trae el codigo real confirmado
+        por folio, asi que lo consultamos ahi antes de intentar descargar/enviar, y
+        solo si eso falla usamos el guardado como ultimo recurso."""
+        try:
+            fecha_emision_str = str(boleta.get("fecha_emision") or "")
+            periodo = fecha_emision_str[:7].replace("-", "") if len(fecha_emision_str) >= 7 else date.today().strftime("%Y%m")
+            respuesta = api_client.listar_emitidas(
+                rut=rut_emisor_actual(), clave=clave_actual(), emisor=rut_emisor_actual(), periodo=periodo
+            )
+            for b_sii in respuesta.get("boletas", []):
+                folio_sii = str(b_sii.get("folio") or b_sii.get("numero"))
+                if folio_sii == str(folio) and b_sii.get("codigo"):
+                    return b_sii.get("codigo")
+        except ApiGatewayError:
+            pass
+        return codigo_sii
+
     async def accion_descargar_pdf(e):
         if not validar_clave():
             return
         try:
-            resultado = api_client.descargar_pdf(rut=rut_emisor_actual(), clave=clave_actual(), codigo=codigo_sii)
+            codigo_real = obtener_codigo_real()
+            resultado = api_client.descargar_pdf(rut=rut_emisor_actual(), clave=clave_actual(), codigo=codigo_real)
             msg_status.value = await abrir_pdf_resultado(page, resultado)
             msg_status.color = GREEN
             db_service.registrar_evento_historial(
@@ -158,10 +180,11 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
         if not validar_clave():
             return
         try:
+            codigo_real = obtener_codigo_real()
             resultado = api_client.enviar_email(
                 rut=rut_emisor_actual(),
                 clave=clave_actual(),
-                codigo=codigo_sii,
+                codigo=codigo_real,
                 email_destino=email_destino.value.strip() or None,
             )
             msg_status.value = resultado.get("mensaje", "Correo enviado.")
@@ -349,11 +372,3 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
             ]
         )
     )
-
-
-
-
-
-
-
-
