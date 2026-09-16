@@ -155,6 +155,9 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
                 clave=clave_sii.value.strip(),
                 boleta_payload=payload,
             )
+            import json 
+            print("DEBUG EMISION RAW:", json.dumps(resultado_api.get("raw"), ensure_ascii=False, indent=2))
+
         except ApiGatewayError as api_err:
             logger.error(f"[Emitir View] Error de API Gateway ({api_err.status_code}): {api_err.payload}")
             msg_status.value = mensaje_error_api(api_err)
