@@ -123,7 +123,7 @@ def mapear_estado_boleta(estado_api):
         return "pendiente"
     estado_normalizado = str(estado_api).strip().upper()
     mapa = {
-        "EMITIDA": "pendiente",
+        "EMITIDA": "emitida",
         "PAGADA": "pagada",
         "VENCIDA": "vencida",
         "ANULADA": "anulada",
