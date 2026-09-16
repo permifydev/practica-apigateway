@@ -236,14 +236,14 @@ class SupabaseService:
                 res = self.client.table("boletas")\
                     .select("*, receptores(nombre)")\
                     .eq("usuario_id", usuario_id)\
-                    .order("fecha_emision", desc=True)\
+                    .order("created_at",desc=True)\
                     .execute()
                 return [{"contraparte_nombre": r.get("receptores", {}).get("nombre", "Sin Nombre") if r.get("receptores") else "Sin Nombre", **r} for r in (res.data or [])]
 
             elif rol == "contador":
                 res = self.client.table("boletas")\
                     .select("*, receptores(nombre)")\
-                    .order("fecha_emision", desc=True)\
+                    .order("created_at", desc=True)\
                     .execute()
                 return [{"contraparte_nombre": r.get("receptores", {}).get("nombre", "Sin Nombre") if r.get("receptores") else "Sin Nombre", **r} for r in (res.data or [])]
 
@@ -251,7 +251,7 @@ class SupabaseService:
                 res = self.client.table("boletas")\
                     .select("*, receptores!inner(rut, nombre)")\
                     .eq("receptores.rut", rut)\
-                    .order("fecha_emision", desc=True)\
+                    .order("created_at", desc=True)\
                     .execute()
                 return [{"contraparte_nombre": "Mi Empresa / Emisor", **r} for r in (res.data or [])]
 

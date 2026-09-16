@@ -86,6 +86,12 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
     def clave_actual():
         return clave_reconciliar.value.strip() if clave_reconciliar.value else state.get("clave_sii_temp")
 
+    def estado_real_desde_sii(b_sii: dict) -> str:
+        """El SII marca una boleta anulada con fecha en el campo 'anulada' (vacio si
+        sigue vigente). Usamos ese campo como fuente de verdad en vez de 'estado'
+        (S/N), que no esta documentado con certeza."""
+        return "anulada" if (b_sii.get("anulada") or "").strip() else "emitida"
+
     def accion_reconciliar(e):
         rut_objetivo = rut_reconciliar.value.strip() if rut_reconciliar.value else None
         if not rut_objetivo:
@@ -101,8 +107,6 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
 
         state["clave_sii_temp"] = clave_actual()
 
-        # Filtra la tabla de abajo para que muestre solo las boletas de este RUT,
-        # que son las que le corresponden a la persona que esta reconciliando.
         rut_filtro = normalizar_rut(rut_objetivo)
         boletas_del_emisor = [b for b in boletas if normalizar_rut(b.get("rut_emisor") or "") == rut_filtro]
         tabla.rows = construir_filas(boletas_del_emisor)
@@ -117,26 +121,89 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
                 rut=rut_objetivo, clave=clave_actual(), emisor=rut_objetivo, periodo=periodo_actual
             )
             boletas_sii = respuesta.get("boletas", [])
-            import json
-            print("DEBUG SII RAW:", json.dumps(boletas_sii, ensure_ascii=False, indent=2))
-            folios_sii = {str(b.get("folio")): b for b in boletas_sii}
-            
+            folios_sii = {str(b.get("folio") or b.get("numero")): b for b in boletas_sii}
             folios_locales = {str(b.get("folio_sii")): b for b in boletas_del_emisor}
 
-            faltantes_local = [f for f in folios_sii if f not in folios_locales]
-            solo_local = [f for f in folios_locales if f not in folios_sii and folios_locales[f].get("estado") != "anulada"]
+            creadas, actualizadas, con_error = 0, 0, 0
 
-            if not faltantes_local and not solo_local:
+            for folio_str, b_sii in folios_sii.items():
+                estado_sii = estado_real_desde_sii(b_sii)
+
+                if folio_str in folios_locales:
+                    # Ya existe local: solo sincronizamos el estado si cambio
+                    # (ej. se anulo directo en el portal del SII).
+                    boleta_local = folios_locales[folio_str]
+                    if boleta_local.get("estado") != estado_sii:
+                        resultado_update = db_service.actualizar_estado_boleta(
+                            boleta_id=boleta_local.get("id"), nuevo_estado=estado_sii
+                        )
+                        if resultado_update:
+                            boleta_local["estado"] = estado_sii
+                            actualizadas += 1
+                        else:
+                            con_error += 1
+                    continue
+
+                # No existe local: la creamos con los datos reales del SII.
+                rut_receptor = f"{b_sii.get('rut', '')}-{str(b_sii.get('dv', '')).lower()}"
+                nombre_receptor = b_sii.get("nombre") or "Receptor Sin Nombre"
+
+                receptor = db_service.obtener_o_crear_receptor(
+                    rut=rut_receptor, nombre=nombre_receptor, usuario_id=usuario_id,
+                )
+                receptor_id = receptor.get("id") if isinstance(receptor, dict) else receptor
+                if not receptor_id:
+                    con_error += 1
+                    continue
+
+                monto_bruto = b_sii.get("total_honorarios") or b_sii.get("monto_bruto") or 0
+                monto_retenido = b_sii.get("retencion_receptor") or 0
+                monto_liquido = b_sii.get("total_liquido") or (monto_bruto - monto_retenido)
+
+                boleta_payload = {
+                    "usuario_id": usuario_id,
+                    "receptor_id": receptor_id,
+                    "folio_sii": folio_str,
+                    "estado": estado_sii,
+                    "descripcion": "Importada automaticamente desde reconciliacion con el SII",
+                    "monto_bruto": monto_bruto,
+                    "tasa_retencion": (monto_retenido / monto_bruto) if monto_bruto else 0,
+                    "monto_retenido": monto_retenido,
+                    "monto_liquido": monto_liquido,
+                    "modo_retencion": 1 if monto_retenido else 0,
+                    "fecha_emision": b_sii.get("fecha_emision") or b_sii.get("fecha") or date.today().isoformat(),
+                    "rut_emisor": rut_objetivo,
+                    "respuesta_sii": {
+                        "folio": b_sii.get("folio") or b_sii.get("numero"),
+                        "codigo": b_sii.get("codigo"),
+                        "estado": b_sii.get("estado"),
+                    },
+                }
+
+                guardada = db_service.guardar_boleta(boleta_payload, contraparte_nombre=nombre_receptor)
+                if guardada:
+                    boletas.append(guardada)
+                    creadas += 1
+                else:
+                    con_error += 1
+
+            # Refresca la tabla con el estado final (incluye lo recien creado/actualizado).
+            boletas_del_emisor = [b for b in boletas if normalizar_rut(b.get("rut_emisor") or "") == rut_filtro]
+            tabla.rows = construir_filas(boletas_del_emisor)
+
+            if creadas == 0 and actualizadas == 0 and con_error == 0:
                 msg_reconciliar.value = f"Todo coincide con el SII ({len(folios_sii)} boleta(s) este periodo)."
                 msg_reconciliar.color = GREEN
             else:
                 partes = []
-                if faltantes_local:
-                    partes.append(f"{len(faltantes_local)} folio(s) en el SII que no estan en tu registro local: {', '.join(faltantes_local)}")
-                if solo_local:
-                    partes.append(f"{len(solo_local)} folio(s) locales que el SII no reporta este periodo: {', '.join(solo_local)}")
-                msg_reconciliar.value = " | ".join(partes)
-                msg_reconciliar.color = RED_TEXT
+                if creadas:
+                    partes.append(f"{creadas} boleta(s) importada(s) desde el SII")
+                if actualizadas:
+                    partes.append(f"{actualizadas} estado(s) actualizado(s)")
+                if con_error:
+                    partes.append(f"{con_error} con error al guardar (revisa los logs)")
+                msg_reconciliar.value = " | ".join(partes) + "."
+                msg_reconciliar.color = GREEN if not con_error else RED_TEXT
         except ApiGatewayError as api_err:
             msg_reconciliar.value = mensaje_error_api(api_err)
             msg_reconciliar.color = RED_TEXT
@@ -182,10 +249,3 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
             ]
         )
     )
-
-
-
-
-
-
-
