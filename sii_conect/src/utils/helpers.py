@@ -2,6 +2,11 @@ import re
 import base64
 import inspect
 import datetime
+import uuid
+from pathlib import Path
+
+# sii_conect/src/utils/helpers.py -> sii_conect/assets/pdfs
+CARPETA_ASSETS_PDF = Path(__file__).resolve().parent.parent.parent / "assets" / "pdfs"
 
 MESES_ES = {
     "ene": 1, "feb": 2, "mar": 3, "abr": 4, "may": 5, "jun": 6,
@@ -100,13 +105,20 @@ async def _abrir_url(page, url: str):
 async def abrir_pdf_resultado(page, resultado: dict) -> str:
     """Abre en el navegador el PDF devuelto por descargar_pdf/descargar_pdf_recibida
     (que puede venir como bytes binarios o, en modo mock, como una URL) y devuelve
-    el texto de estado a mostrar al usuario."""
+    el texto de estado a mostrar al usuario.
+
+    Los PDF que vienen como bytes se guardan como archivo real dentro de
+    assets/pdfs y se abren por una URL corta (en vez de meterlos como texto
+    base64 gigante en la URL), porque muchos navegadores no renderizan bien
+    un PDF pesado embebido directo en la barra de direcciones."""
     pdf_bytes = resultado.get("pdf_bytes")
     data = resultado.get("data") or {}
 
     if pdf_bytes:
-        b64 = base64.b64encode(pdf_bytes).decode("ascii")
-        await _abrir_url(page, f"data:application/pdf;base64,{b64}")
+        CARPETA_ASSETS_PDF.mkdir(parents=True, exist_ok=True)
+        nombre_archivo = f"boleta_{uuid.uuid4().hex[:12]}.pdf"
+        (CARPETA_ASSETS_PDF / nombre_archivo).write_bytes(pdf_bytes)
+        await _abrir_url(page, f"/pdfs/{nombre_archivo}")
         return "PDF abierto en una pestaña nueva."
 
     pdf_url = data.get("pdf_url")
@@ -129,11 +141,3 @@ def mapear_estado_boleta(estado_api):
         "ANULADA": "anulada",
     }
     return mapa.get(estado_normalizado, "pendiente")
-    
-
-
-
-
-
-
-

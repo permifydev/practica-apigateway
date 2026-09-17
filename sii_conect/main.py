@@ -61,19 +61,4 @@ def main(page: ft.Page):
     navigate_to("Login")
 
 if __name__ == "__main__":
-    render_port = os.environ.get("PORT")
-    if render_port:
-        # Detecta que esta corriendo en un servidor tipo Render (siempre setea PORT)
-        # y arranca como app web escuchando en ese puerto, en vez de intentar abrir
-        # una ventana nativa (que no existe en un servidor Linux sin pantalla).
-        ft.app(target=main, view=ft.AppView.WEB_BROWSER, host="0.0.0.0", port=int(render_port))
-    else:
-        ft.app(target=main)
-
-
-
-
-
-
-
-
+    ft.app(target=main, assets_dir="assets")
