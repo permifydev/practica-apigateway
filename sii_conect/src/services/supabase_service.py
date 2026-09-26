@@ -5,13 +5,13 @@ from src.config import supabase as _shared_client
 
 logger = logging.getLogger(__name__)
 
-
 class SupabaseService:
     def __init__(self):
+        # Un solo cliente compartido para toda la app (definido una vez en config.py).
         self.client: Client = _shared_client
 
     def iniciar_sesion(self, email: str, password: str) -> dict | None:
-        """Inicia sesión real contra Supabase Auth."""
+        """Inicia sesion real contra Supabase Auth. Devuelve {'id', 'email'} del usuario autenticado o None si fallan las credenciales."""
         if not self.client:
             return None
         try:
@@ -32,7 +32,7 @@ class SupabaseService:
                 logger.error(f"Error al cerrar sesion: {e}")
 
     def obtener_perfil_propio(self, usuario_id: str) -> dict | None:
-        """Trae el perfil del usuario ya autenticado."""
+        """Trae el perfil del usuario ya autenticado. Requiere sesion activa (RLS: id = auth.uid())."""
         if not self.client:
             return None
         try:
@@ -60,6 +60,7 @@ class SupabaseService:
         if not self.client:
             logger.warning("validar_usuario() fue llamado con cliente Supabase sin inicializar.")
             return None
+
         logger.warning("validar_usuario() fue llamado con un cliente Supabase real: usa iniciar_sesion().")
         return None
 
@@ -73,7 +74,7 @@ class SupabaseService:
             return None
 
     def obtener_o_crear_receptor(self, rut: str, nombre: str, email: str = "", usuario_id: str | None = None) -> dict | None:
-        """Busca un receptor por RUT o lo crea si no existe."""
+        """Busca un receptor por RUT o lo crea si no existe. Garantiza devolver un dict con clave 'id'."""
         try:
             rut_clean = rut.strip()
             res = self.client.table("receptores").select("id, nombre, rut").eq("rut", rut_clean).execute()
@@ -178,12 +179,15 @@ class SupabaseService:
         try:
             payload = dict(boleta_data)
 
+            # Sanitizacion 1: Si receptor_id vino como diccionario completo, extraer solo el string ID
             if isinstance(payload.get("receptor_id"), dict):
                 payload["receptor_id"] = payload["receptor_id"].get("id")
 
+            # Sanitizacion 2: Asegurar que folio_sii sea string
             if payload.get("folio_sii") is not None:
                 payload["folio_sii"] = str(payload["folio_sii"])
 
+            # Sanitizacion 3: Si certificado_id es None o vacio, eliminarlo para no violar constraints NULL en Postgres
             if not payload.get("certificado_id"):
                 payload.pop("certificado_id", None)
 
@@ -210,6 +214,25 @@ class SupabaseService:
             logger.error(f"Error al actualizar estado de boleta: {e}")
             return None
 
+    def subir_pdf_boleta(self, usuario_id: str, folio: str, pdf_bytes: bytes) -> str | None:
+        """Sube el PDF de una boleta al bucket privado 'pdf_boletas', dentro de una
+        carpeta por usuario (asi las politicas de RLS pueden restringir cada quien
+        a lo suyo), y devuelve una URL firmada (valida 1 hora) para abrirlo.
+        Si algo falla (bucket sin politicas, sin sesion, etc.) devuelve None y
+        quien llama puede recurrir al guardado local como respaldo."""
+        try:
+            ruta = f"{usuario_id}/{folio}.pdf"
+            self.client.storage.from_("pdf_boletas").upload(
+                path=ruta,
+                file=pdf_bytes,
+                file_options={"content-type": "application/pdf", "upsert": "true"},
+            )
+            firmada = self.client.storage.from_("pdf_boletas").create_signed_url(ruta, 3600)
+            return firmada.get("signedURL") or firmada.get("signedUrl") or firmada.get("signed_url")
+        except Exception as e:
+            logger.error(f"Error al subir PDF a Supabase Storage: {e}")
+            return None
+
     def registrar_evento_historial(self, boleta_id: str, usuario_id: str, tipo_evento: str, detalle: str = "") -> dict | None:
         """Registra un evento en historial_bhe."""
         try:
@@ -232,14 +255,14 @@ class SupabaseService:
                 res = self.client.table("boletas")\
                     .select("*, receptores(nombre)")\
                     .eq("usuario_id", usuario_id)\
-                    .order("created_at", desc=True)\
+                    .order("fecha_emision", desc=True)\
                     .execute()
                 return [{"contraparte_nombre": r.get("receptores", {}).get("nombre", "Sin Nombre") if r.get("receptores") else "Sin Nombre", **r} for r in (res.data or [])]
 
             elif rol == "contador":
                 res = self.client.table("boletas")\
                     .select("*, receptores(nombre)")\
-                    .order("created_at", desc=True)\
+                    .order("fecha_emision", desc=True)\
                     .execute()
                 return [{"contraparte_nombre": r.get("receptores", {}).get("nombre", "Sin Nombre") if r.get("receptores") else "Sin Nombre", **r} for r in (res.data or [])]
 
@@ -247,7 +270,7 @@ class SupabaseService:
                 res = self.client.table("boletas")\
                     .select("*, receptores!inner(rut, nombre)")\
                     .eq("receptores.rut", rut)\
-                    .order("created_at", desc=True)\
+                    .order("fecha_emision", desc=True)\
                     .execute()
                 return [{"contraparte_nombre": "Mi Empresa / Emisor", **r} for r in (res.data or [])]
 
@@ -255,32 +278,3 @@ class SupabaseService:
         except Exception as e:
             logger.error(f"Error al consultar boletas por rol: {e}")
             return []
-
-    # --- FUNCIONES DE SUPABASE STORAGE DENTRO DE LA CLASE ---
-
-    def guardar_o_actualizar_pdf_storage(self, folio: int, pdf_bytes: bytes) -> bool:
-        """Sube o sobrescribe (upsert) el PDF de una boleta en Supabase Storage."""
-        try:
-            nombre_archivo = f"boleta_{folio}.pdf"
-            self.client.storage.from_("pdf_boletas").upload(
-                path=nombre_archivo,
-                file=pdf_bytes,
-                file_options={"content-type": "application/pdf", "upsert": "true"}
-            )
-            return True
-        except Exception as e:
-            logger.error(f"Error al guardar PDF en Storage: {e}")
-            return False
-
-    def obtener_url_descarga_segura(self, folio: int) -> str:
-        """Genera una URL temporal firmada (3600 seg = 1 hora) para descargar el PDF privado."""
-        try:
-            nombre_archivo = f"boleta_{folio}.pdf"
-            res = self.client.storage.from_("pdf_boletas").create_signed_url(
-                path=nombre_archivo, 
-                expires_in=3600
-            )
-            return res.get("signedUrl") if isinstance(res, dict) else res
-        except Exception as e:
-            logger.error(f"Error al obtener URL firmada: {e}")
-            return ""

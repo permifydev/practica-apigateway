@@ -102,19 +102,26 @@ async def _abrir_url(page, url: str):
         await resultado
 
 
-async def abrir_pdf_resultado(page, resultado: dict) -> str:
+async def abrir_pdf_resultado(page, resultado: dict, db_service=None, usuario_id=None, folio=None) -> str:
     """Abre en el navegador el PDF devuelto por descargar_pdf/descargar_pdf_recibida
     (que puede venir como bytes binarios o, en modo mock, como una URL) y devuelve
     el texto de estado a mostrar al usuario.
 
-    Los PDF que vienen como bytes se guardan como archivo real dentro de
-    assets/pdfs y se abren por una URL corta (en vez de meterlos como texto
-    base64 gigante en la URL), porque muchos navegadores no renderizan bien
-    un PDF pesado embebido directo en la barra de direcciones."""
+    Si se pasan db_service/usuario_id/folio, primero intenta guardar el PDF de
+    forma PERMANENTE en el bucket de Supabase Storage 'pdf_boletas' y abrir la
+    URL firmada resultante. Si eso no esta disponible (o falla), usa como
+    respaldo el disco local del servidor (assets/pdfs) -- que solo dura
+    mientras el servidor no se reinicie, pero sirve para verlo una vez."""
     pdf_bytes = resultado.get("pdf_bytes")
     data = resultado.get("data") or {}
 
     if pdf_bytes:
+        if db_service and usuario_id and folio:
+            url_firmada = db_service.subir_pdf_boleta(usuario_id, folio, pdf_bytes)
+            if url_firmada:
+                await _abrir_url(page, url_firmada)
+                return "PDF abierto en una pestaña nueva (guardado permanente en Supabase)."
+
         CARPETA_ASSETS_PDF.mkdir(parents=True, exist_ok=True)
         nombre_archivo = f"boleta_{uuid.uuid4().hex[:12]}.pdf"
         (CARPETA_ASSETS_PDF / nombre_archivo).write_bytes(pdf_bytes)

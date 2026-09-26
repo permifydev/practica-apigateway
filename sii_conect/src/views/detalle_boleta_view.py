@@ -163,7 +163,9 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
         try:
             codigo_real = obtener_codigo_real()
             resultado = api_client.descargar_pdf(rut=rut_emisor_actual(), clave=clave_actual(), codigo=codigo_real)
-            msg_status.value = await abrir_pdf_resultado(page, resultado)
+            msg_status.value = await abrir_pdf_resultado(
+                page, resultado, db_service=db_service, usuario_id=usuario_info.get("id"), folio=folio
+            )
             msg_status.color = GREEN
             db_service.registrar_evento_historial(
                 boleta_id=boleta.get("id"), usuario_id=usuario_info.get("id"),
