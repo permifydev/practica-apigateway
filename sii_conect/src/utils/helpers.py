@@ -124,16 +124,16 @@ async def abrir_pdf_resultado(page, resultado: dict, db_service=None, usuario_id
         if db_service and usuario_id and folio:
             url_firmada = db_service.subir_pdf_boleta(usuario_id, folio, pdf_bytes)
             if url_firmada:
-                return {"mensaje": "PDF listo (guardado permanente en Supabase). Toca el link para abrirlo.", "url": url_firmada}
+                return {"mensaje": "PDF listo (guardado permanente en Supabase). Aprieta el botón para descargarlo.", "url": url_firmada}
 
         CARPETA_ASSETS_PDF.mkdir(parents=True, exist_ok=True)
         nombre_archivo = f"boleta_{uuid.uuid4().hex[:12]}.pdf"
         (CARPETA_ASSETS_PDF / nombre_archivo).write_bytes(pdf_bytes)
-        return {"mensaje": "PDF listo. Toca el link para abrirlo.", "url": f"/pdfs/{nombre_archivo}"}
+        return {"mensaje": "PDF listo. Aprieta el botón para descargarlo.", "url": f"/pdfs/{nombre_archivo}"}
 
     pdf_url = data.get("pdf_url")
     if pdf_url:
-        return {"mensaje": "PDF listo. Toca el link para abrirlo.", "url": pdf_url}
+        return {"mensaje": "PDF listo. Aprieta el botón para descargarlo.", "url": pdf_url}
 
     return {"mensaje": "El SII no devolvió un PDF para este documento.", "url": None}
 

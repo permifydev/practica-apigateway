@@ -102,7 +102,10 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
     btn_enviar_email = ft.OutlinedButton("Enviar por Email", height=42)
 
     msg_status = ft.Text("", size=12)
-    link_pdf = ft.TextButton("Abrir PDF", url=None, url_target=ft.UrlTarget.BLANK, visible=False)
+    link_pdf = ft.ElevatedButton(
+        "Descargar PDF (listo)", icon=ft.Icons.DOWNLOAD, url=None, url_target=ft.UrlTarget.BLANK,
+        bgcolor=GREEN, color="white", visible=False,
+    )
 
     def on_cambiar_clave(e):
         state["clave_sii_temp"] = None

@@ -227,7 +227,9 @@ class SupabaseService:
                 file=pdf_bytes,
                 file_options={"content-type": "application/pdf", "upsert": "true"},
             )
-            firmada = self.client.storage.from_("pdf_boletas").create_signed_url(ruta, 3600)
+            firmada = self.client.storage.from_("pdf_boletas").create_signed_url(
+                ruta, 3600, {"download": f"boleta_{folio}.pdf"}
+            )
             return firmada.get("signedURL") or firmada.get("signedUrl") or firmada.get("signed_url")
         except Exception as e:
             logger.error(f"Error al subir PDF a Supabase Storage: {e}")
