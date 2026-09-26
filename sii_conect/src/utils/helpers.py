@@ -102,16 +102,21 @@ async def _abrir_url(page, url: str):
         await resultado
 
 
-async def abrir_pdf_resultado(page, resultado: dict, db_service=None, usuario_id=None, folio=None) -> str:
-    """Abre en el navegador el PDF devuelto por descargar_pdf/descargar_pdf_recibida
-    (que puede venir como bytes binarios o, en modo mock, como una URL) y devuelve
-    el texto de estado a mostrar al usuario.
+async def abrir_pdf_resultado(page, resultado: dict, db_service=None, usuario_id=None, folio=None) -> dict:
+    """Prepara el PDF devuelto por descargar_pdf/descargar_pdf_recibida (que puede
+    venir como bytes binarios o, en modo mock, como una URL) y devuelve
+    {"mensaje": str, "url": str|None}.
 
     Si se pasan db_service/usuario_id/folio, primero intenta guardar el PDF de
-    forma PERMANENTE en el bucket de Supabase Storage 'pdf_boletas' y abrir la
-    URL firmada resultante. Si eso no esta disponible (o falla), usa como
-    respaldo el disco local del servidor (assets/pdfs) -- que solo dura
-    mientras el servidor no se reinicie, pero sirve para verlo una vez."""
+    forma PERMANENTE en el bucket de Supabase Storage 'pdf_boletas'. Si eso no
+    esta disponible (o falla), usa como respaldo el disco local del servidor
+    (assets/pdfs) -- que solo dura mientras el servidor no se reinicie.
+
+    OJO: ya no abre la pestaña automaticamente (page.launch_url) porque, al haber
+    una espera de red de por medio (la subida a Supabase), el navegador deja de
+    considerarlo un 'gesto directo del usuario' y bloquea el pop-up en silencio
+    (sin error, simplemente no pasa nada). Por eso quien llama debe mostrar la
+    URL devuelta como un link real que el usuario apriete el mismo."""
     pdf_bytes = resultado.get("pdf_bytes")
     data = resultado.get("data") or {}
 
@@ -119,21 +124,18 @@ async def abrir_pdf_resultado(page, resultado: dict, db_service=None, usuario_id
         if db_service and usuario_id and folio:
             url_firmada = db_service.subir_pdf_boleta(usuario_id, folio, pdf_bytes)
             if url_firmada:
-                await _abrir_url(page, url_firmada)
-                return "PDF abierto en una pestaña nueva (guardado permanente en Supabase)."
+                return {"mensaje": "PDF listo (guardado permanente en Supabase). Toca el link para abrirlo.", "url": url_firmada}
 
         CARPETA_ASSETS_PDF.mkdir(parents=True, exist_ok=True)
         nombre_archivo = f"boleta_{uuid.uuid4().hex[:12]}.pdf"
         (CARPETA_ASSETS_PDF / nombre_archivo).write_bytes(pdf_bytes)
-        await _abrir_url(page, f"/pdfs/{nombre_archivo}")
-        return "PDF abierto en una pestaña nueva."
+        return {"mensaje": "PDF listo. Toca el link para abrirlo.", "url": f"/pdfs/{nombre_archivo}"}
 
     pdf_url = data.get("pdf_url")
     if pdf_url:
-        await _abrir_url(page, pdf_url)
-        return f"PDF abierto: {pdf_url}"
+        return {"mensaje": "PDF listo. Toca el link para abrirlo.", "url": pdf_url}
 
-    return "El SII no devolvió un PDF para este documento."
+    return {"mensaje": "El SII no devolvió un PDF para este documento.", "url": None}
 
 
 def mapear_estado_boleta(estado_api):

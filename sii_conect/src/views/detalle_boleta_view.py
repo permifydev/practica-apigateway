@@ -102,6 +102,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
     btn_enviar_email = ft.OutlinedButton("Enviar por Email", height=42)
 
     msg_status = ft.Text("", size=12)
+    link_pdf = ft.TextButton("Abrir PDF", url=None, url_target=ft.UrlTarget.BLANK, visible=False)
 
     def on_cambiar_clave(e):
         state["clave_sii_temp"] = None
@@ -163,9 +164,12 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
         try:
             codigo_real = obtener_codigo_real()
             resultado = api_client.descargar_pdf(rut=rut_emisor_actual(), clave=clave_actual(), codigo=codigo_real)
-            msg_status.value = await abrir_pdf_resultado(
+            pdf_listo = await abrir_pdf_resultado(
                 page, resultado, db_service=db_service, usuario_id=usuario_info.get("id"), folio=folio
             )
+            msg_status.value = pdf_listo["mensaje"]
+            link_pdf.url = pdf_listo["url"]
+            link_pdf.visible = bool(pdf_listo["url"])
             msg_status.color = GREEN
             db_service.registrar_evento_historial(
                 boleta_id=boleta.get("id"), usuario_id=usuario_info.get("id"),
@@ -174,6 +178,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
         except ApiGatewayError as api_err:
             msg_status.value = mensaje_error_api(api_err)
             msg_status.color = RED_TEXT
+            link_pdf.visible = False
         page.update()
 
     btn_descargar_pdf.on_click = accion_descargar_pdf
@@ -335,6 +340,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
             ft.Row([info_clave, cambiar_clave_btn], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ft.Container(height=6),
             btn_descargar_pdf,
+            link_pdf,
             email_destino,
             btn_enviar_email,
             ft.Container(height=10),
