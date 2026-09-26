@@ -1,6 +1,7 @@
-.env 
-.env.* __pycache__/ *.pyc *.zip .DS_Store
-
-git rm -r --cached .
-git add .
-git commit -m "Fix: eliminar pycache"
+.env
+.env.*
+__pycache__/
+*.pyc
+*.zip
+.DS_Store
+sii_conect/assets/pdfs/*.pdf
