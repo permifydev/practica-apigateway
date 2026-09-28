@@ -1,9 +1,11 @@
+import asyncio
 from datetime import date
 import flet as ft
 from src.utils.constants import NAVY, BLUE, GREEN, RED_TEXT, GREY_TEXT, CARD_RADIUS
 from src.services.supabase_service import SupabaseService
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
-from src.utils.helpers import mensaje_error_api
+from src.utils.helpers import mensaje_error_api, _abrir_url
+from src.utils.acciones_boleta import preparar_pdf, enviar_boleta_por_email, recordar_codigos
 
 db_service = SupabaseService()
 api_client = ApiGatewayClient()
@@ -48,12 +50,13 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
                         ft.DataCell(ft.Text(b.get("contraparte_nombre", "---"))),
                         ft.DataCell(ft.Text(monto)),
                         ft.DataCell(ft.Text(str(b.get("estado", "pendiente")))),
+                        ft.DataCell(botones_accion(b)),
                     ],
                     on_select_changed=abrir_detalle(b),
                 )
             )
         return filas if filas else [
-            ft.DataRow(cells=[ft.DataCell(ft.Text("Sin registros para este RUT"))] * 6)
+            ft.DataRow(cells=[ft.DataCell(ft.Text("Sin registros para este RUT"))] * 7)
         ]
 
     tabla = ft.DataTable(
@@ -64,9 +67,182 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
             ft.DataColumn(ft.Text("Emisor / Receptor")),
             ft.DataColumn(ft.Text("Monto Bruto")),
             ft.DataColumn(ft.Text("Estado")),
+            ft.DataColumn(ft.Text("Acciones")),
         ],
-        rows=construir_filas(boletas),
+        rows=[],  # se llena al final con construir_filas(boletas), cuando ya existen los botones
     )
+
+    # --- Acciones por fila: Enviar / Descargar / Ver PDF ---
+    msg_acciones = ft.Text("", size=12)
+
+    def clave_para_acciones():
+        # La clave viene del campo de reconciliacion, o de la sesion si ya se ingreso antes.
+        return (clave_reconciliar.value.strip() if clave_reconciliar.value else None) or state.get("clave_sii_temp")
+
+    def datos_accion(b):
+        """Valida clave y RUT; devuelve (rut_emisor, clave) o None si falta algo."""
+        clave = clave_para_acciones()
+        rut_b = b.get("rut_emisor") or rut_usuario
+        if not clave:
+            msg_acciones.value = "Ingresa tu Clave SII en el recuadro de arriba para usar estas acciones."
+            msg_acciones.color = RED_TEXT
+            page.update()
+            return None
+        if not rut_b:
+            msg_acciones.value = "Esta boleta no tiene RUT emisor registrado."
+            msg_acciones.color = RED_TEXT
+            page.update()
+            return None
+        state["clave_sii_temp"] = clave
+        return rut_b, clave
+
+    # Dialogo unico y reutilizable con links reales (el navegador nunca los bloquea).
+    dlg_pdf_titulo = ft.Text("PDF listo")
+    btn_dlg_abrir = ft.ElevatedButton("Abrir PDF", icon=ft.Icons.OPEN_IN_NEW, url=None, url_target=ft.UrlTarget.BLANK)
+    btn_dlg_descargar = ft.ElevatedButton(
+        "Descargar", icon=ft.Icons.DOWNLOAD, url=None, url_target=ft.UrlTarget.BLANK,
+        bgcolor=GREEN, color="white",
+    )
+
+    def cerrar_dlg_pdf(e=None):
+        dialog_pdf.open = False
+        page.update()
+
+    dialog_pdf = ft.AlertDialog(
+        modal=True,
+        title=dlg_pdf_titulo,
+        content=ft.Text("El PDF esta listo. Usa uno de los botones."),
+        actions=[ft.TextButton("Cerrar", on_click=cerrar_dlg_pdf), btn_dlg_abrir, btn_dlg_descargar],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+
+    def mostrar_dialogo_pdf(b, pdf):
+        dlg_pdf_titulo.value = f"Boleta #{b.get('folio_sii', '---')}"
+        btn_dlg_abrir.url = pdf["ver"]
+        btn_dlg_descargar.url = pdf["descarga"]
+        if dialog_pdf not in page.overlay:
+            page.overlay.append(dialog_pdf)
+        dialog_pdf.open = True
+        page.update()
+
+    async def accion_pdf(b, modo):
+        datos = datos_accion(b)
+        if not datos:
+            return
+        rut_b, clave = datos
+        msg_acciones.value = f"Preparando PDF de la boleta #{b.get('folio_sii', '---')}..."
+        msg_acciones.color = GREY_TEXT
+        page.update()
+        try:
+            pdf = await asyncio.to_thread(
+                preparar_pdf, api_client, db_service, state, b, rut_b, clave, usuario_id
+            )
+        except ApiGatewayError as api_err:
+            msg_acciones.value = mensaje_error_api(api_err)
+            msg_acciones.color = RED_TEXT
+            page.update()
+            return
+
+        msg_acciones.value = pdf["mensaje"]
+        msg_acciones.color = GREEN if pdf["ver"] else RED_TEXT
+        if not pdf["ver"]:
+            page.update()
+            return
+
+        if pdf["origen"] == "sii":
+            db_service.registrar_evento_historial(
+                boleta_id=b.get("id"), usuario_id=usuario_id,
+                tipo_evento="consulta_sii", detalle="Descarga de PDF"
+            )
+
+        url = pdf["descarga"] if modo == "descargar" else pdf["ver"]
+        if pdf["origen"] in ("memoria", "supabase"):
+            # Respuesta casi instantanea: el navegador aun acepta abrir la pestana.
+            try:
+                await _abrir_url(page, url)
+            except Exception:
+                mostrar_dialogo_pdf(b, pdf)
+        else:
+            # Hubo espera de red (SII + subida): se muestra el dialogo con links reales.
+            mostrar_dialogo_pdf(b, pdf)
+        page.update()
+
+    # Dialogo para Enviar por email (correo opcional; vacio = el que tiene el SII)
+    email_dialogo = ft.TextField(label="Enviar a otro correo (opcional)", hint_text="cliente@ejemplo.com")
+    boleta_para_email = {"b": None}
+
+    def cerrar_dlg_email(e=None):
+        dialog_email.open = False
+        page.update()
+
+    async def confirmar_email(e):
+        b = boleta_para_email["b"]
+        cerrar_dlg_email()
+        datos = datos_accion(b)
+        if not datos:
+            return
+        rut_b, clave = datos
+        msg_acciones.value = f"Enviando boleta #{b.get('folio_sii', '---')}..."
+        msg_acciones.color = GREY_TEXT
+        page.update()
+        try:
+            resultado = await asyncio.to_thread(
+                enviar_boleta_por_email, api_client, state, b, rut_b, clave,
+                email_dialogo.value.strip() or None,
+            )
+            msg_acciones.value = resultado.get("mensaje", "Correo enviado.")
+            msg_acciones.color = GREEN
+            db_service.registrar_evento_historial(
+                boleta_id=b.get("id"), usuario_id=usuario_id,
+                tipo_evento="consulta_sii", detalle="Envio por email"
+            )
+        except ApiGatewayError as api_err:
+            msg_acciones.value = mensaje_error_api(api_err)
+            msg_acciones.color = RED_TEXT
+        page.update()
+
+    dialog_email = ft.AlertDialog(
+        modal=True,
+        title=ft.Text("Enviar boleta por email"),
+        content=email_dialogo,
+        actions=[
+            ft.TextButton("Cancelar", on_click=cerrar_dlg_email),
+            ft.ElevatedButton("Enviar", on_click=confirmar_email),
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+
+    def abrir_dlg_email(b):
+        def handler(e):
+            if not datos_accion(b):
+                return
+            boleta_para_email["b"] = b
+            email_dialogo.value = ""
+            if dialog_email not in page.overlay:
+                page.overlay.append(dialog_email)
+            dialog_email.open = True
+            page.update()
+        return handler
+
+    def handler_pdf(b, modo):
+        async def handler(e):
+            await accion_pdf(b, modo)
+        return handler
+
+    def botones_accion(b):
+        anulada = str(b.get("estado", "")).lower() == "anulada"
+        estilo = ft.ButtonStyle(
+            padding=ft.padding.symmetric(horizontal=6),
+            text_style=ft.TextStyle(size=12, weight=ft.FontWeight.BOLD),
+        )
+        return ft.Row(
+            spacing=0,
+            controls=[
+                ft.TextButton("ENVIAR", on_click=abrir_dlg_email(b), disabled=anulada, style=estilo),
+                ft.TextButton("DESCARGAR", on_click=handler_pdf(b, "descargar"), style=estilo),
+                ft.TextButton("VER PDF", on_click=handler_pdf(b, "ver"), style=estilo),
+            ],
+        )
 
     # --- Reconciliar con el SII (mes actual) ---
     # El RUT ya no se escribe a mano: siempre es el del usuario logueado (tabla
@@ -121,6 +297,7 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
                 rut=rut_objetivo, clave=clave_actual(), emisor=rut_objetivo, periodo=periodo_actual
             )
             boletas_sii = respuesta.get("boletas", [])
+            recordar_codigos(state, rut_objetivo, boletas_sii)
             folios_sii = {str(b.get("folio") or b.get("numero")): b for b in boletas_sii}
             folios_locales = {str(b.get("folio_sii")): b for b in boletas_del_emisor}
 
@@ -224,6 +401,8 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
         ])
     )
 
+    tabla.rows = construir_filas(boletas)
+
     return ft.Container(
         padding=20,
         expand=True,
@@ -241,6 +420,7 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
                 ft.Text("Toca una fila para ver el detalle.", size=11, color=BLUE),
                 ft.Container(height=10),
                 panel_reconciliacion,
+                msg_acciones,
                 ft.Container(height=10),
                 ft.Container(
                     bgcolor="white", border_radius=CARD_RADIUS, padding=10,
@@ -249,3 +429,4 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
             ]
         )
     )
+

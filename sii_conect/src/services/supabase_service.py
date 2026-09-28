@@ -235,6 +235,46 @@ class SupabaseService:
             logger.error(f"Error al subir PDF a Supabase Storage: {e}")
             return None
 
+    def _firmar_urls_pdf(self, usuario_id: str, folio: str) -> dict | None:
+        """Devuelve dos URLs firmadas (1 hora) del mismo PDF: 'ver' (se abre en el
+        navegador) y 'descarga' (fuerza la descarga con nombre boleta_<folio>.pdf)."""
+        bucket = self.client.storage.from_("pdf_boletas")
+        ruta = f"{usuario_id}/{folio}.pdf"
+
+        def extraer(r):
+            return r.get("signedURL") or r.get("signedUrl") or r.get("signed_url")
+
+        ver = extraer(bucket.create_signed_url(ruta, 3600))
+        descarga = extraer(bucket.create_signed_url(ruta, 3600, {"download": f"boleta_{folio}.pdf"}))
+        return {"ver": ver, "descarga": descarga} if (ver and descarga) else None
+
+    def subir_pdf_boleta_urls(self, usuario_id: str, folio: str, pdf_bytes: bytes) -> dict | None:
+        """Igual que subir_pdf_boleta, pero devuelve {'ver': url, 'descarga': url}."""
+        try:
+            self.client.storage.from_("pdf_boletas").upload(
+                path=f"{usuario_id}/{folio}.pdf",
+                file=pdf_bytes,
+                file_options={"content-type": "application/pdf", "upsert": "true"},
+            )
+            return self._firmar_urls_pdf(usuario_id, folio)
+        except Exception as e:
+            logger.error(f"Error al subir PDF a Supabase Storage: {e}")
+            return None
+
+    def urls_pdf_boleta(self, usuario_id: str, folio: str) -> dict | None:
+        """Si el PDF de este folio YA esta guardado en Supabase, devuelve sus URLs
+        firmadas sin volver a llamar al SII (ahorra creditos). Si no existe, None."""
+        try:
+            archivos = self.client.storage.from_("pdf_boletas").list(
+                usuario_id, {"search": f"{folio}.pdf"}
+            )
+            if not any(a.get("name") == f"{folio}.pdf" for a in (archivos or [])):
+                return None
+            return self._firmar_urls_pdf(usuario_id, folio)
+        except Exception as e:
+            logger.warning(f"No se pudo consultar el PDF en Supabase Storage: {e}")
+            return None
+
     def registrar_evento_historial(self, boleta_id: str, usuario_id: str, tipo_evento: str, detalle: str = "") -> dict | None:
         """Registra un evento en historial_bhe."""
         try:

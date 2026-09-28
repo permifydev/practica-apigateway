@@ -1,9 +1,10 @@
-from datetime import date
+import asyncio
 import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, GREY_TEXT, CARD_RADIUS
 from src.services.supabase_service import SupabaseService
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
-from src.utils.helpers import mapear_estado_boleta, abrir_pdf_resultado, mensaje_error_api
+from src.utils.helpers import mapear_estado_boleta, mensaje_error_api, _abrir_url
+from src.utils.acciones_boleta import preparar_pdf, enviar_boleta_por_email
 
 db_service = SupabaseService()
 api_client = ApiGatewayClient()
@@ -98,14 +99,20 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
         ]
     )
     toggle_anular_btn = ft.OutlinedButton("Anular Boleta", height=42)
-    btn_descargar_pdf = ft.OutlinedButton("Descargar PDF", height=42)
+    btn_descargar_pdf = ft.OutlinedButton("Ver PDF", icon=ft.Icons.PICTURE_AS_PDF, height=42)
     btn_enviar_email = ft.OutlinedButton("Enviar por Email", height=42)
 
     msg_status = ft.Text("", size=12)
-    link_pdf = ft.ElevatedButton(
-        "Descargar PDF (listo)", icon=ft.Icons.DOWNLOAD, url=None, url_target=ft.UrlTarget.BLANK,
+    # Botones verdes de respaldo: son links reales (el navegador nunca los bloquea).
+    link_ver_pdf = ft.ElevatedButton(
+        "Abrir PDF", icon=ft.Icons.OPEN_IN_NEW, url=None, url_target=ft.UrlTarget.BLANK,
         bgcolor=GREEN, color="white", visible=False,
     )
+    link_descargar_pdf = ft.ElevatedButton(
+        "Descargar PDF", icon=ft.Icons.DOWNLOAD, url=None, url_target=ft.UrlTarget.BLANK,
+        bgcolor=GREEN, color="white", visible=False,
+    )
+    fila_links_pdf = ft.Row([link_ver_pdf, link_descargar_pdf], wrap=True, visible=False)
 
     def on_cambiar_clave(e):
         state["clave_sii_temp"] = None
@@ -141,60 +148,49 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
             cambiar_clave_btn.visible = True
         return True
 
-    def obtener_codigo_real():
-        """El 'codigo' guardado al emitir (respuesta_sii.codigo) viene de un campo
-        adivinado (CodigoInferior/CodigoBarras) que resulto no ser el que el SII espera
-        para pdf/email. El listado (listar_emitidas) SI trae el codigo real confirmado
-        por folio, asi que lo consultamos ahi antes de intentar descargar/enviar, y
-        solo si eso falla usamos el guardado como ultimo recurso."""
-        try:
-            fecha_emision_str = str(boleta.get("fecha_emision") or "")
-            periodo = fecha_emision_str[:7].replace("-", "") if len(fecha_emision_str) >= 7 else date.today().strftime("%Y%m")
-            respuesta = api_client.listar_emitidas(
-                rut=rut_emisor_actual(), clave=clave_actual(), emisor=rut_emisor_actual(), periodo=periodo
-            )
-            for b_sii in respuesta.get("boletas", []):
-                folio_sii = str(b_sii.get("folio") or b_sii.get("numero"))
-                if folio_sii == str(folio) and b_sii.get("codigo"):
-                    return b_sii.get("codigo")
-        except ApiGatewayError:
-            pass
-        return codigo_sii
-
-    async def accion_descargar_pdf(e):
+    async def accion_ver_pdf(e):
         if not validar_clave():
             return
+        btn_descargar_pdf.disabled = True
+        msg_status.value = "Preparando PDF..."
+        msg_status.color = GREY_TEXT
+        page.update()
         try:
-            codigo_real = obtener_codigo_real()
-            resultado = api_client.descargar_pdf(rut=rut_emisor_actual(), clave=clave_actual(), codigo=codigo_real)
-            pdf_listo = await abrir_pdf_resultado(
-                page, resultado, db_service=db_service, usuario_id=usuario_info.get("id"), folio=folio
+            pdf = await asyncio.to_thread(
+                preparar_pdf, api_client, db_service, state, boleta,
+                rut_emisor_actual(), clave_actual(), usuario_info.get("id"),
             )
-            msg_status.value = pdf_listo["mensaje"]
-            link_pdf.url = pdf_listo["url"]
-            link_pdf.visible = bool(pdf_listo["url"])
+            msg_status.value = pdf["mensaje"]
             msg_status.color = GREEN
-            db_service.registrar_evento_historial(
-                boleta_id=boleta.get("id"), usuario_id=usuario_info.get("id"),
-                tipo_evento="consulta_sii", detalle="Descarga de PDF"
-            )
+            link_ver_pdf.url = pdf["ver"]
+            link_descargar_pdf.url = pdf["descarga"]
+            fila_links_pdf.visible = bool(pdf["ver"])
+            link_ver_pdf.visible = link_descargar_pdf.visible = bool(pdf["ver"])
+            if pdf["ver"]:
+                try:
+                    await _abrir_url(page, pdf["ver"])  # abre el PDF en otra pestana
+                except Exception:
+                    pass  # si el navegador lo bloquea, quedan los botones verdes
+                if pdf["origen"] == "sii":
+                    db_service.registrar_evento_historial(
+                        boleta_id=boleta.get("id"), usuario_id=usuario_info.get("id"),
+                        tipo_evento="consulta_sii", detalle="Descarga de PDF"
+                    )
         except ApiGatewayError as api_err:
             msg_status.value = mensaje_error_api(api_err)
             msg_status.color = RED_TEXT
-            link_pdf.visible = False
+            fila_links_pdf.visible = False
+        btn_descargar_pdf.disabled = False
         page.update()
 
-    btn_descargar_pdf.on_click = accion_descargar_pdf
+    btn_descargar_pdf.on_click = accion_ver_pdf
 
     def accion_enviar_email(e):
         if not validar_clave():
             return
         try:
-            codigo_real = obtener_codigo_real()
-            resultado = api_client.enviar_email(
-                rut=rut_emisor_actual(),
-                clave=clave_actual(),
-                codigo=codigo_real,
+            resultado = enviar_boleta_por_email(
+                api_client, state, boleta, rut_emisor_actual(), clave_actual(),
                 email_destino=email_destino.value.strip() or None,
             )
             msg_status.value = resultado.get("mensaje", "Correo enviado.")
@@ -343,7 +339,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
             ft.Row([info_clave, cambiar_clave_btn], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ft.Container(height=6),
             btn_descargar_pdf,
-            link_pdf,
+            fila_links_pdf,
             email_destino,
             btn_enviar_email,
             ft.Container(height=10),
