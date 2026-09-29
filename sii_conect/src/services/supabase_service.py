@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, date
 from supabase import Client
 from src.config import supabase as _shared_client
+from src.utils.crypto_rut import cifrar_rut, descifrar_rut, hash_rut
 
 logger = logging.getLogger(__name__)
 
@@ -74,15 +75,19 @@ class SupabaseService:
             return None
 
     def obtener_o_crear_receptor(self, rut: str, nombre: str, email: str = "", usuario_id: str | None = None) -> dict | None:
-        """Busca un receptor por RUT o lo crea si no existe. Garantiza devolver un dict con clave 'id'."""
+        """Busca un receptor por RUT (via rut_hash, sin descifrar nada) o lo crea si no
+        existe. Garantiza devolver un dict con clave 'id' y 'rut' en texto plano."""
         try:
             rut_clean = rut.strip()
-            res = self.client.table("receptores").select("id, nombre, rut").eq("rut", rut_clean).execute()
+            rut_h = hash_rut(rut_clean)
+            res = self.client.table("receptores").select("id, nombre, rut_cifrado").eq("rut_hash", rut_h).execute()
             if res.data:
-                return res.data[0]
+                fila = res.data[0]
+                return {"id": fila["id"], "nombre": fila["nombre"], "rut": descifrar_rut(fila.get("rut_cifrado")) or rut_clean}
 
             payload = {
-                "rut": rut_clean,
+                "rut_hash": rut_h,
+                "rut_cifrado": cifrar_rut(rut_clean),
                 "nombre": nombre.strip(),
             }
             if email:
@@ -91,31 +96,44 @@ class SupabaseService:
                 payload["usuario_id"] = usuario_id
 
             nuevo = self.client.table("receptores").insert(payload).execute()
-            return nuevo.data[0] if (nuevo and nuevo.data) else None
+            if nuevo and nuevo.data:
+                fila = nuevo.data[0]
+                return {"id": fila["id"], "nombre": fila.get("nombre"), "rut": rut_clean}
+            return None
         except Exception as e:
             logger.error(f"Error en obtener_o_crear_receptor: {e}")
             return None
 
     def listar_receptores(self) -> list[dict]:
-        """Devuelve todos los receptores registrados."""
+        """Devuelve todos los receptores registrados, con el RUT ya descifrado."""
         try:
-            res = self.client.table("receptores").select("id, rut, nombre, email").order("nombre").execute()
-            return res.data or []
+            res = self.client.table("receptores").select("id, rut_cifrado, nombre, email").order("nombre").execute()
+            receptores = []
+            for r in (res.data or []):
+                fila = dict(r)
+                fila["rut"] = descifrar_rut(fila.pop("rut_cifrado", None)) or "---"
+                receptores.append(fila)
+            return receptores
         except Exception as e:
             logger.error(f"Error al listar receptores: {e}")
             return []
 
     def crear_receptor(self, rut: str, nombre: str, email: str = "", usuario_id: str | None = None) -> dict | None:
-        """Crea un receptor nuevo."""
+        """Crea un receptor nuevo, guardando el RUT cifrado (mas su hash para buscarlo)."""
         try:
-            payload = {"rut": rut.strip(), "nombre": nombre.strip()}
+            rut_clean = rut.strip()
+            payload = {"rut_hash": hash_rut(rut_clean), "rut_cifrado": cifrar_rut(rut_clean), "nombre": nombre.strip()}
             if email:
                 payload["email"] = email.strip()
             if usuario_id:
                 payload["usuario_id"] = usuario_id
 
             response = self.client.table("receptores").insert(payload).execute()
-            return response.data[0] if (response and response.data) else None
+            if response and response.data:
+                fila = dict(response.data[0])
+                fila["rut"] = rut_clean
+                return fila
+            return None
         except Exception as e:
             logger.error(f"Error al crear receptor: {e}")
             return None
@@ -310,8 +328,8 @@ class SupabaseService:
 
             elif rol == "cliente":
                 res = self.client.table("boletas")\
-                    .select("*, receptores!inner(rut, nombre)")\
-                    .eq("receptores.rut", rut)\
+                    .select("*, receptores!inner(rut_hash, nombre)")\
+                    .eq("receptores.rut_hash", hash_rut(rut))\
                     .order("fecha_emision", desc=True)\
                     .execute()
                 return [{"contraparte_nombre": "Mi Empresa / Emisor", **r} for r in (res.data or [])]
