@@ -64,18 +64,6 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
     )
     cambiar_clave_btn = ft.TextButton("Cambiar clave", visible=clave_ya_guardada)
 
-    # Si la boleta es antigua (emitida antes de guardar rut_emisor) no habra RUT
-    # registrado; se permite ingresarlo manualmente como respaldo.
-    rut_emisor_manual = ft.TextField(
-        label="RUT Emisor de esta boleta (no quedo registrado)",
-        hint_text="12.345.678-9",
-        visible=not bool(rut_emisor),
-    )
-    info_rut_emisor = ft.Text(
-        f"RUT Emisor de esta boleta: {rut_emisor}" if rut_emisor else "",
-        size=11, color=GREY_TEXT, visible=bool(rut_emisor),
-    )
-
     email_destino = ft.TextField(label="Enviar a otro correo (opcional)", hint_text="cliente@ejemplo.com")
 
     causa_anulacion = ft.RadioGroup(
@@ -128,11 +116,11 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
         return state.get("clave_sii_temp") or (clave_sii.value.strip() if clave_sii.value else None)
 
     def rut_emisor_actual():
-        return rut_emisor or (rut_emisor_manual.value.strip() if rut_emisor_manual.value else None)
+        return rut_emisor
 
     def validar_clave():
         if not rut_emisor_actual():
-            msg_status.value = "Falta el RUT del emisor de esta boleta (ingresalo arriba)."
+            msg_status.value = "No se pudo determinar el RUT del emisor de esta boleta. Revisa tu perfil."
             msg_status.color = RED_TEXT
             page.update()
             return False
@@ -333,8 +321,6 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
         content=ft.Column([
             ft.Text("Acciones sobre el documento", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
             ft.Container(height=8),
-            info_rut_emisor,
-            rut_emisor_manual,
             clave_sii,
             ft.Row([info_clave, cambiar_clave_btn], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ft.Container(height=6),
