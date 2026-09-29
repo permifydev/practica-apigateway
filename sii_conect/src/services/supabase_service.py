@@ -38,7 +38,7 @@ class SupabaseService:
             return None
         try:
             res = self.client.table("perfiles")\
-                .select("id, nombre_completo, rut, rol, email")\
+                .select("id, nombre_completo, rut_cifrado, rol, email")\
                 .eq("id", usuario_id)\
                 .execute()
             if res.data:
@@ -46,10 +46,11 @@ class SupabaseService:
                 return {
                     "id": usr["id"],
                     "nombre": usr.get("nombre_completo", "Usuario"),
-                    "rut": usr.get("rut"),
+                    "rut": descifrar_rut(usr.get("rut_cifrado")),
                     "rol": str(usr.get("rol", "usuario")).lower(),
                     "email": usr.get("email"),
                 }
+            
             logger.warning(f"[Supabase REAL] Sesion valida pero sin fila en 'perfiles' para id={usuario_id}")
             return None
         except Exception as e:
