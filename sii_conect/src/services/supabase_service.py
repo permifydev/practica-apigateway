@@ -50,7 +50,7 @@ class SupabaseService:
                     "rol": str(usr.get("rol", "usuario")).lower(),
                     "email": usr.get("email"),
                 }
-            
+
             logger.warning(f"[Supabase REAL] Sesion valida pero sin fila en 'perfiles' para id={usuario_id}")
             return None
         except Exception as e:
@@ -210,6 +210,10 @@ class SupabaseService:
             if not payload.get("certificado_id"):
                 payload.pop("certificado_id", None)
 
+            # Sanitizacion 4: el RUT emisor se guarda cifrado, nunca en texto plano
+            if payload.get("rut_emisor"):
+                payload["rut_emisor_cifrado"] = cifrar_rut(payload.pop("rut_emisor"))
+
             response = self.client.table("boletas").insert(payload).execute()
 
             if response and response.data:
@@ -311,6 +315,14 @@ class SupabaseService:
 
     def obtener_boletas_por_rol(self, rol: str, usuario_id: str, rut: str = "") -> list[dict]:
         """Recupera las boletas aplicando los permisos estrictos de cada rol."""
+        def _preparar(filas):
+            salida = []
+            for r in filas:
+                fila = dict(r)
+                fila["rut_emisor"] = descifrar_rut(fila.pop("rut_emisor_cifrado", None))
+                salida.append(fila)
+            return salida
+
         try:
             if rol == "emisor":
                 res = self.client.table("boletas")\
@@ -318,14 +330,14 @@ class SupabaseService:
                     .eq("usuario_id", usuario_id)\
                     .order("fecha_emision", desc=True)\
                     .execute()
-                return [{"contraparte_nombre": r.get("receptores", {}).get("nombre", "Sin Nombre") if r.get("receptores") else "Sin Nombre", **r} for r in (res.data or [])]
+                return _preparar([{"contraparte_nombre": r.get("receptores", {}).get("nombre", "Sin Nombre") if r.get("receptores") else "Sin Nombre", **r} for r in (res.data or [])])
 
             elif rol == "contador":
                 res = self.client.table("boletas")\
                     .select("*, receptores(nombre)")\
                     .order("fecha_emision", desc=True)\
                     .execute()
-                return [{"contraparte_nombre": r.get("receptores", {}).get("nombre", "Sin Nombre") if r.get("receptores") else "Sin Nombre", **r} for r in (res.data or [])]
+                return _preparar([{"contraparte_nombre": r.get("receptores", {}).get("nombre", "Sin Nombre") if r.get("receptores") else "Sin Nombre", **r} for r in (res.data or [])])
 
             elif rol == "cliente":
                 res = self.client.table("boletas")\
@@ -333,7 +345,7 @@ class SupabaseService:
                     .eq("receptores.rut_hash", hash_rut(rut))\
                     .order("fecha_emision", desc=True)\
                     .execute()
-                return [{"contraparte_nombre": "Mi Empresa / Emisor", **r} for r in (res.data or [])]
+                return _preparar([{"contraparte_nombre": "Mi Empresa / Emisor", **r} for r in (res.data or [])])
 
             return []
         except Exception as e:
