@@ -7,6 +7,7 @@ from src.components.ui import stat_card, quick_action, pending_row
 PANTALLAS_DISPONIBLES = [
     "Inicio", "Emitir BHE", "Mis BHE", "Certificados",
     "Receptores", "Perfil", "Boletas Recibidas", "Verificar Autenticidad",
+    "Solicitar emisión BHE",
 ]
 
 def build_home(page: ft.Page, state: dict, navigate_to):
@@ -65,7 +66,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
                     content=ft.Text(badge, size=9, color="white", weight=ft.FontWeight.BOLD),
                 )
             )
-        
+
         item = ft.Container(
             on_click=go_to_screen(label),
             padding=ft.padding.symmetric(horizontal=16, vertical=11),
@@ -114,6 +115,11 @@ def build_home(page: ft.Page, state: dict, navigate_to):
             menu_item(ft.Icons.FACT_CHECK_OUTLINED, "Boletas Recibidas"),
             menu_section_label("HERRAMIENTAS"),
             menu_item(ft.Icons.VERIFIED_OUTLINED, "Verificar Autenticidad"),
+        ])
+    elif rol_usuario == "receptor":
+        menu_controls.extend([
+            menu_item(ft.Icons.BAR_CHART, "Resumen ingresos"),
+            menu_item(ft.Icons.SEND_OUTLINED, "Solicitar emisión BHE"),
         ])
 
     menu_controls.extend([
@@ -226,7 +232,7 @@ alignment=ft.alignment.Alignment(0, 0),
     )
 
     quick_actions_list = []
-    
+
     if rol_usuario == "emisor":
         subtitulo_rol = "Resumen de emisión y actividad tributaria."
         quick_actions_list = [
@@ -239,6 +245,11 @@ alignment=ft.alignment.Alignment(0, 0),
         quick_actions_list = [
             quick_action("Revisar todas las BHE", on_click=lambda e: navigate_to("Mis BHE")),
             quick_action("Verificar receptores activos", on_click=lambda e: navigate_to("Receptores")),
+        ]
+    elif rol_usuario == "receptor":
+        subtitulo_rol = "Portal de solicitud de boletas de honorarios."
+        quick_actions_list = [
+            quick_action("+ Solicitar emisión de BHE", on_click=lambda e: navigate_to("Solicitar emisión BHE")),
         ]
     else:  # cliente
         subtitulo_rol = "Portal de consulta de boletas recibidas."
@@ -255,12 +266,12 @@ alignment=ft.alignment.Alignment(0, 0),
                 ft.Text(f"Buenas tardes, {nombre_usuario}", size=22, weight=ft.FontWeight.BOLD, color=NAVY),
                 ft.Text(subtitulo_rol, size=13, color=GREY_TEXT),
                 ft.Container(height=4),
-                
+
                 stat_card("Cobrado este mes", "$1.240.000", GREEN, "+12% vs mes anterior", GREEN),
                 stat_card("Retención acumulada", "$189.100", ORANGE, "14.5% retención actual"),
                 stat_card("Documentos del mes", "5", BLUE, "Boletas procesadas"),
                 ft.Container(height=6),
-                
+
                 ft.Container(
                     bgcolor="white", border_radius=CARD_RADIUS, padding=18, width=380,
                     shadow=ft.BoxShadow(blur_radius=12, color="#12000000", offset=ft.Offset(0, 3)),
@@ -273,7 +284,7 @@ alignment=ft.alignment.Alignment(0, 0),
                     ),
                 ),
                 ft.Container(height=6),
-                
+
                 ft.Container(
                     bgcolor="white", border_radius=CARD_RADIUS, padding=18, width=380,
                     shadow=ft.BoxShadow(blur_radius=12, color="#12000000", offset=ft.Offset(0, 3)),
@@ -299,6 +310,3 @@ alignment=ft.alignment.Alignment(0, 0),
 
     page_content = ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO, expand=True, controls=[header, body])
     return ft.Stack(expand=True, controls=[page_content, backdrop, drawer])
-
-
-

@@ -313,6 +313,57 @@ class SupabaseService:
             logger.error(f"Error al registrar evento de historial: {e}")
             return None
 
+    def crear_solicitud_bhe(self, receptor_usuario_id: str, receptor_nombre: str, receptor_rut: str,
+                             receptor_direccion: str, receptor_comuna: str, receptor_email: str,
+                             empresa_nombre: str, empresa_rut: str, empresa_direccion: str,
+                             descripcion_servicio: str, monto_bruto: float, monto_liquido: float) -> dict | None:
+        """Guarda una solicitud de emision de BHE hecha por un receptor (rol 'receptor').
+        El RUT propio del receptor y el RUT de la empresa solicitada se guardan cifrados;
+        el de la empresa ademas guarda su hash para poder ubicarla despues por RUT sin
+        descifrar toda la tabla (util cuando se construya la bandeja del emisor)."""
+        try:
+            payload = {
+                "receptor_usuario_id": receptor_usuario_id,
+                "receptor_nombre": receptor_nombre.strip(),
+                "receptor_rut_cifrado": cifrar_rut(receptor_rut),
+                "receptor_direccion": receptor_direccion.strip(),
+                "receptor_comuna": receptor_comuna.strip(),
+                "receptor_email": receptor_email.strip() if receptor_email else None,
+                "empresa_nombre": empresa_nombre.strip(),
+                "empresa_rut_cifrado": cifrar_rut(empresa_rut),
+                "empresa_rut_hash": hash_rut(empresa_rut),
+                "empresa_direccion": empresa_direccion.strip(),
+                "descripcion_servicio": descripcion_servicio.strip(),
+                "monto_bruto": monto_bruto,
+                "monto_liquido": monto_liquido,
+                "estado": "pendiente",
+            }
+            response = self.client.table("solicitudes_bhe").insert(payload).execute()
+            return response.data[0] if (response and response.data) else None
+        except Exception as e:
+            logger.error(f"Error al crear solicitud de BHE: {e}")
+            return None
+
+    def listar_mis_solicitudes_bhe(self, receptor_usuario_id: str) -> list[dict]:
+        """Devuelve las solicitudes de BHE hechas por este receptor, mas recientes primero,
+        con los RUT ya descifrados para mostrar en pantalla."""
+        try:
+            res = self.client.table("solicitudes_bhe")\
+                .select("id, empresa_nombre, empresa_rut_cifrado, empresa_direccion, "
+                        "descripcion_servicio, monto_bruto, monto_liquido, estado, fecha_solicitud")\
+                .eq("receptor_usuario_id", receptor_usuario_id)\
+                .order("fecha_solicitud", desc=True)\
+                .execute()
+            salida = []
+            for r in (res.data or []):
+                fila = dict(r)
+                fila["empresa_rut"] = descifrar_rut(fila.pop("empresa_rut_cifrado", None))
+                salida.append(fila)
+            return salida
+        except Exception as e:
+            logger.error(f"Error al listar solicitudes de BHE: {e}")
+            return []
+
     def obtener_boletas_por_rol(self, rol: str, usuario_id: str, rut: str = "") -> list[dict]:
         """Recupera las boletas aplicando los permisos estrictos de cada rol."""
         def _preparar(filas):
