@@ -1,7 +1,7 @@
 import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, GREY_TEXT, CARD_RADIUS
 from src.services.supabase_service import SupabaseService
-from src.utils.helpers import validar_rut
+from src.utils.helpers import validar_rut, activar_formato_rut_en_vivo
 
 db_service = SupabaseService()
 
@@ -28,7 +28,8 @@ def build_receptores(page: ft.Page, state: dict, navigate_to):
     lista_container = ft.Column(spacing=8)
     msg_status = ft.Text("", size=12)
 
-    rut_field = ft.TextField(label="RUT", hint_text="76.111.222-3", width=200)
+    rut_field = ft.TextField(label="RUT", hint_text="Solo escribe los numeros (761112223)", width=200)
+    activar_formato_rut_en_vivo(rut_field)
     nombre_field = ft.TextField(label="Nombre / Razon Social", expand=True)
     email_field = ft.TextField(label="Correo (opcional)", expand=True)
     editando_id = {"value": None}
@@ -146,10 +147,3 @@ def build_receptores(page: ft.Page, state: dict, navigate_to):
             ]
         )
     )
-
-
-
-
-
-
-

@@ -75,10 +75,19 @@ class ApiGatewayClient:
                 payload=payload,
             )
 
-        content_type = response.headers.get("Content-Type", "")
-        if "application/pdf" in content_type:
+        # Ojo: NO basta con confiar en el header Content-Type -- el SII a veces lo manda
+        # como 'application/pdf' aunque el cuerpo real sea una pagina HTML de error. Se
+        # valida la cabecera real del archivo (%PDF) en vez del header.
+        if response.content[:4] == b"%PDF":
             return {"pdf_bytes": response.content, "data": None}
-        return {"pdf_bytes": None, "data": self._parse_response(response)}
+
+        try:
+            return {"pdf_bytes": None, "data": self._parse_response(response)}
+        except ApiGatewayError:
+            raise ApiGatewayError(
+                "El SII no devolvio un PDF valido para este documento.",
+                status_code=response.status_code,
+            )
 
     def _log_stats(self, response):
         creditos = response.headers.get("X-Stats-Credits-Remaining")
@@ -147,9 +156,11 @@ class ApiGatewayClient:
     def _normalizar_respuesta_listado(self, data: dict, pagina_solicitada: int) -> dict:
         """La API real devuelve las boletas dentro de 'data' con nombres de campo propios
         del SII (numero, total_honorarios) en vez de los que usa el resto de la app
-        (folio, monto_bruto), confirmado con la prueba real en Postman. Se agregan
-        alias con los nombres esperados sin perder los campos originales, para no
-        romper nada que ya lea los nombres crudos del SII (ej. 'estado': 'S').
+        (folio, monto_bruto), confirmado con la prueba real en Postman para emitidas.
+        Se agregan alias con los nombres esperados sin perder los campos originales,
+        para no romper nada que ya lea los nombres crudos del SII (ej. 'estado': 'S').
+        Se usa tanto para emitidas como para recibidas, ya que ambos endpoints son la
+        misma familia de listado del SII.
 
         OJO: 'n_paginas' en la respuesta real es el TOTAL de paginas disponibles, no la
         pagina actual (a diferencia del mock, que devolvia 'pagina' como la pagina
@@ -159,8 +170,8 @@ class ApiGatewayClient:
         boletas = [
             {
                 **b,
-                "folio": b.get("numero"),
-                "monto_bruto": b.get("total_honorarios"),
+                "folio": b.get("numero", b.get("folio")),
+                "monto_bruto": b.get("total_honorarios", b.get("monto_bruto")),
             }
             for b in boletas_raw
         ]
@@ -275,7 +286,10 @@ class ApiGatewayClient:
     # ---------------- BHE Recibidas ----------------
 
     def listar_recibidas(self, rut: str, clave: str, receptor: str, periodo: str, pagina: int = 1) -> dict:
-        """Lista boletas recibidas por el RUT receptor en un periodo (YYYYMM o YYYYMMDD)."""
+        """Lista boletas recibidas por el RUT receptor en un periodo (YYYYMM o YYYYMMDD).
+        Usa la misma normalizacion que listar_emitidas (misma familia de endpoint de
+        listado del SII: desenvuelve 'data' y renombra numero->folio, total_honorarios
+        ->monto_bruto), confirmado con datos reales (folio 1334, julio 2024)."""
         url = f"{self.base_url}/api/v2/sii/bhe/recibidas/documentos/{receptor}/{periodo}"
         body = self._auth_block(rut, clave)
 
@@ -288,7 +302,9 @@ class ApiGatewayClient:
                     status_code=response.status_code,
                     payload=self._parse_response(response)
                 )
-            return self._parse_response(response)
+            res_json = self._parse_response(response)
+            data = res_json.get("data", res_json)
+            return self._normalizar_respuesta_listado(data, pagina_solicitada=pagina)
         except requests.RequestException as e:
             raise ApiGatewayError(f"Error de conexión con apigateway.cl: {str(e)}")
 
@@ -352,10 +368,3 @@ class ApiGatewayClient:
             return self._parse_response(response)
         except requests.RequestException as e:
             raise ApiGatewayError(f"Error de conexión con apigateway.cl: {str(e)}")
-
-
-
-
-
-
-

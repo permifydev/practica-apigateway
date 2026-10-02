@@ -1,7 +1,7 @@
 import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, GREY_TEXT, CARD_RADIUS
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
-from src.utils.helpers import mensaje_error_api
+from src.utils.helpers import mensaje_error_api, activar_formato_rut_en_vivo
 
 api_client = ApiGatewayClient()
 
@@ -25,8 +25,10 @@ def build_verificar_autenticidad(page: ft.Page, state: dict, navigate_to):
     )
 
     codigo_barras = ft.TextField(label="Codigo de barras", visible=True)
-    emisor = ft.TextField(label="RUT Emisor", hint_text="76.192.083-9", visible=False)
-    receptor = ft.TextField(label="RUT Receptor", hint_text="76.111.222-3", visible=False)
+    emisor = ft.TextField(label="RUT Emisor", hint_text="Solo escribe los numeros (761920839)", visible=False)
+    receptor = ft.TextField(label="RUT Receptor", hint_text="Solo escribe los numeros (761112223)", visible=False)
+    activar_formato_rut_en_vivo(emisor)
+    activar_formato_rut_en_vivo(receptor)
     periodo = ft.TextField(label="Fecha del documento (YYYY-MM-DD)", visible=False)
     folio = ft.TextField(label="Folio", visible=False)
 
@@ -127,10 +129,3 @@ def build_verificar_autenticidad(page: ft.Page, state: dict, navigate_to):
             ]
         )
     )
-
-
-
-
-
-
-

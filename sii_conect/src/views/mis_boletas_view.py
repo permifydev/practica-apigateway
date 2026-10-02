@@ -11,6 +11,12 @@ db_service = SupabaseService()
 api_client = ApiGatewayClient()
 
 
+MESES_NOMBRE = [
+    "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+]
+
+
 def normalizar_rut(rut: str) -> str:
     """Quita puntos/espacios y pasa a mayuscula para poder comparar RUTs escritos con
     o sin formato (ej. '12.345.678-9' vs '12345678-9')."""
@@ -259,6 +265,61 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
     )
     msg_reconciliar = ft.Text("", size=12)
 
+    # --- Selector de mes a reconciliar (igual que en Resumen de Ingresos) ---
+    hoy = date.today()
+    periodo_sel = {"anio": hoy.year, "mes": hoy.month}
+    label_periodo = ft.Text(f"{MESES_NOMBRE[periodo_sel['mes']]} {periodo_sel['anio']}", size=13, weight=ft.FontWeight.BOLD, color=NAVY)
+
+    def periodo_str():
+        return f"{periodo_sel['anio']:04d}{periodo_sel['mes']:02d}"
+
+    def refrescar_label_periodo():
+        label_periodo.value = f"{MESES_NOMBRE[periodo_sel['mes']]} {periodo_sel['anio']}"
+        page.update()
+
+    def mes_anterior(e):
+        periodo_sel["mes"] -= 1
+        if periodo_sel["mes"] < 1:
+            periodo_sel["mes"] = 12
+            periodo_sel["anio"] -= 1
+        refrescar_label_periodo()
+
+    def mes_siguiente(e):
+        periodo_sel["mes"] += 1
+        if periodo_sel["mes"] > 12:
+            periodo_sel["mes"] = 1
+            periodo_sel["anio"] += 1
+        refrescar_label_periodo()
+
+    def al_elegir_fecha(e):
+        if date_picker.value:
+            periodo_sel["anio"] = date_picker.value.year
+            periodo_sel["mes"] = date_picker.value.month
+            refrescar_label_periodo()
+
+    date_picker = ft.DatePicker(
+        first_date=date(2020, 1, 1),
+        last_date=hoy,
+        value=hoy,
+        on_change=al_elegir_fecha,
+    )
+
+    def abrir_calendario(e):
+        if date_picker not in page.overlay:
+            page.overlay.append(date_picker)
+        date_picker.open = True
+        page.update()
+
+    selector_periodo = ft.Row(
+        spacing=4,
+        controls=[
+            ft.IconButton(icon=ft.Icons.CHEVRON_LEFT, on_click=mes_anterior),
+            label_periodo,
+            ft.IconButton(icon=ft.Icons.CALENDAR_MONTH, icon_size=18, tooltip="Elegir mes lejano", on_click=abrir_calendario),
+            ft.IconButton(icon=ft.Icons.CHEVRON_RIGHT, on_click=mes_siguiente),
+        ],
+    )
+
     def clave_actual():
         return clave_reconciliar.value.strip() if clave_reconciliar.value else state.get("clave_sii_temp")
 
@@ -292,9 +353,8 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
         page.update()
 
         try:
-            periodo_actual = date.today().strftime("%Y%m")
             respuesta = api_client.listar_emitidas(
-                rut=rut_objetivo, clave=clave_actual(), emisor=rut_objetivo, periodo=periodo_actual
+                rut=rut_objetivo, clave=clave_actual(), emisor=rut_objetivo, periodo=periodo_str()
             )
             boletas_sii = respuesta.get("boletas", [])
             recordar_codigos(state, rut_objetivo, boletas_sii)
@@ -390,12 +450,13 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
         visible=rol in ("emisor", "contador"),
         bgcolor="white", border_radius=CARD_RADIUS, padding=14,
         content=ft.Column([
-            ft.Text("Reconciliar con el SII (mes actual)", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
+            ft.Text("Reconciliar con el SII", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
             ft.Text(
-                "Compara tu registro local contra el listado oficial de boletas emitidas, "
-                "y filtra la tabla para mostrar solo las boletas de este RUT.",
+                "Compara tu registro local contra el listado oficial de boletas emitidas del mes "
+                "elegido, y filtra la tabla para mostrar solo las boletas de este RUT.",
                 size=11, color=GREY_TEXT,
             ),
+            selector_periodo,
             ft.Row([rut_reconciliar, clave_reconciliar, ft.ElevatedButton("Reconciliar", on_click=accion_reconciliar, height=42)], wrap=True),
             msg_reconciliar,
         ])
@@ -429,4 +490,3 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
             ]
         )
     )
-

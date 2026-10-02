@@ -4,7 +4,7 @@ import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, CARD_RADIUS, GREY_TEXT, tasa_retencion_vigente
 from src.services.supabase_service import SupabaseService
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
-from src.utils.helpers import mapear_estado_boleta, mensaje_error_api, validar_rut
+from src.utils.helpers import mapear_estado_boleta, mensaje_error_api, validar_rut, activar_formato_rut_en_vivo
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,8 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
         disabled=True,
     )
     clave_sii = ft.TextField(label="Clave SII (tuya, no se guarda)", password=True, can_reveal_password=True)
-    rut_receptor = ft.TextField(label="RUT Receptor", hint_text="76.111.222-3")
+    rut_receptor = ft.TextField(label="RUT Receptor", hint_text="Ingrese Rut del receptor")
+    activar_formato_rut_en_vivo(rut_receptor)
     nombre_receptor = ft.TextField(label="Nombre / Razon Social")
     direccion_receptor = ft.TextField(label="Direccion Receptor", hint_text="Av. Principal 123")
     comuna_receptor = ft.TextField(label="Comuna Receptor", hint_text="Santiago")
@@ -332,10 +333,3 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
     )
 
 build_emitir = build_emitir_bhe
-
-
-
-
-
-
-

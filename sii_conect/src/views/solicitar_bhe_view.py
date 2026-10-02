@@ -27,8 +27,12 @@ def build_solicitar_bhe(page: ft.Page, state: dict, navigate_to):
         )
 
     # --- Datos del receptor (quien solicita) ---
+    # El RUT no se edita a mano: es el que tiene asignado el perfil (solo el admin lo
+    # cambia, con registrar_rut_perfil.py), igual que el RUT Emisor en Mis BHE. Asi
+    # un receptor no puede mandar una solicitud con un RUT que no es el suyo.
     rut_receptor = ft.TextField(
         label="Tu RUT", hint_text="12.345.678-9", value=usuario_info.get("rut") or "",
+        disabled=True,
     )
     nombre_receptor = ft.TextField(
         label="Tu Nombre / Razon Social", value=usuario_info.get("nombre") or "",

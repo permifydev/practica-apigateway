@@ -20,6 +20,7 @@ from src.views.verificar_autenticidad_view import build_verificar_autenticidad
 from src.views.receptores_view import build_receptores
 from src.views.perfil_view import build_perfil
 from src.views.solicitar_bhe_view import build_solicitar_bhe
+from src.views.resumen_ingresos_view import build_resumen_ingresos
 
 def main(page: ft.Page):
     page.title = "SII Connect"
@@ -57,9 +58,12 @@ def main(page: ft.Page):
             page.add(build_perfil(page, state, navigate_to))
         elif screen_name == "Solicitar emisión BHE":
             page.add(build_solicitar_bhe(page, state, navigate_to))
+        elif screen_name == "Resumen ingresos":
+            page.add(build_resumen_ingresos(page, state, navigate_to))
         page.update()
 
-    
+    # El login real de la app valida contra la tabla 'perfiles' (ver SupabaseService.validar_usuario
+    # en login_view.py), no contra Supabase Auth. Por eso la app siempre debe arrancar en Login.
     navigate_to("Login")
 
 if __name__ == "__main__":

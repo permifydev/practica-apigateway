@@ -89,6 +89,58 @@ def enviar_boleta_por_email(api_client, state: dict, boleta: dict, rut_emisor: s
     return api_client.enviar_email(rut=rut_emisor, clave=clave, codigo=codigo, email_destino=email_destino)
 
 
+def preparar_pdf_recibida(api_client, db_service, state: dict, boleta_recibida: dict,
+                          rut_receptor: str, clave: str, usuario_id: str) -> dict:
+    """Igual que preparar_pdf, pero para una boleta RECIBIDA (la ve el receptor, no
+    el emisor). Usa descargar_pdf_recibida en vez de descargar_pdf.
+
+    OJO: aca el folio NO es globalmente unico (cada emisor tiene su propia numeracion),
+    asi que la clave de cache/Storage combina emisor_rut + folio para no mezclar PDFs
+    de distintos emisores que por coincidencia compartan folio.
+
+    El campo 'codigo' que pide el SII para el PDF viene del listado de
+    boletas_recibidas_cache (columna 'codigo', confirmado con datos reales). Si por
+    algun motivo viniera vacio, se usa el folio como respaldo, igual que en
+    preparar_pdf."""
+    folio = str(boleta_recibida.get("folio"))
+    emisor_rut = str(boleta_recibida.get("emisor_rut") or "")
+    folio_clave = f"{emisor_rut.replace('.', '').upper()}_{folio}"
+    key = _clave_cache(rut_receptor, folio_clave)
+    cache = state.setdefault("pdf_urls", {})
+
+    hit = cache.get(key)
+    if hit and time.time() - hit["ts"] < VIGENCIA_URL_SEG:
+        return {"ver": hit["ver"], "descarga": hit["descarga"], "origen": "memoria", "mensaje": "PDF listo."}
+
+    urls = db_service.urls_pdf_boleta(usuario_id, folio_clave)
+    if urls:
+        cache[key] = {**urls, "ts": time.time()}
+        return {**urls, "origen": "supabase", "mensaje": "PDF listo (ya estaba guardado en Supabase)."}
+
+    codigo = boleta_recibida.get("codigo") or folio
+    resultado = api_client.descargar_pdf_recibida(rut=rut_receptor, clave=clave, codigo=codigo)
+    pdf_bytes = resultado.get("pdf_bytes")
+    data = resultado.get("data") or {}
+
+    if pdf_bytes:
+        urls = db_service.subir_pdf_boleta_urls(usuario_id, folio_clave, pdf_bytes)
+        if urls:
+            cache[key] = {**urls, "ts": time.time()}
+            return {**urls, "origen": "sii", "mensaje": "PDF listo y guardado en Supabase."}
+        # Respaldo: disco local del servidor (dura hasta que se reinicie)
+        CARPETA_ASSETS_PDF.mkdir(parents=True, exist_ok=True)
+        nombre = f"boleta_{uuid.uuid4().hex[:12]}.pdf"
+        (CARPETA_ASSETS_PDF / nombre).write_bytes(pdf_bytes)
+        url_local = f"/pdfs/{nombre}"
+        return {"ver": url_local, "descarga": url_local, "origen": "sii",
+                "mensaje": "PDF listo (no se pudo guardar en Supabase, queda temporal en el servidor)."}
+
+    if data.get("pdf_url"):
+        return {"ver": data["pdf_url"], "descarga": data["pdf_url"], "origen": "sii", "mensaje": "PDF listo."}
+
+    return {"ver": None, "descarga": None, "origen": "sii", "mensaje": "El SII no devolvio un PDF para este documento."}
+
+
 def recordar_codigos(state: dict, rut_emisor: str, boletas_sii: list) -> None:
     """Guarda en memoria el codigo real de cada folio del listado del SII, asi
     Ver PDF / Descargar / Enviar no tienen que volver a listar (ahorra creditos)."""

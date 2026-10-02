@@ -364,6 +364,81 @@ class SupabaseService:
             logger.error(f"Error al listar solicitudes de BHE: {e}")
             return []
 
+    def guardar_boletas_recibidas_cache(self, usuario_id: str, periodo: str, boletas: list[dict]) -> None:
+        """Guarda (upsert) en Supabase el resultado de una consulta REAL al SII de boletas
+        recibidas. Asi, la proxima vez que se abra Resumen de Ingresos para este mismo
+        periodo, se lee de aqui (gratis) en vez de volver a gastar creditos de
+        apigateway.cl consultando al SII de nuevo."""
+        if not boletas:
+            return
+        try:
+            filas = []
+            for b in boletas:
+                # La respuesta real del SII (confirmada con DEBUG RECIBIDAS RAW) no trae
+                # 'emisor' ni 'razon_social_emisor': trae 'rut' + 'dv' por separado y
+                # 'nombre'. Se arma el RUT igual que en el resto de la app (SIN puntos,
+                # con guion antes del DV).
+                rut_raw = b.get("rut")
+                dv_raw = b.get("dv")
+                emisor_rut = f"{rut_raw}-{str(dv_raw).upper()}" if rut_raw else ""
+                filas.append({
+                    "receptor_usuario_id": usuario_id,
+                    "periodo": periodo,
+                    "folio": str(b.get("folio") or ""),
+                    "emisor_rut": emisor_rut,
+                    "codigo": (str(b.get("codigo")) if b.get("codigo") else None),
+                    "estado": str(b.get("estado") or ""),
+                    "emisor_nombre": b.get("nombre") or "Sin Nombre",
+                    "fecha": b.get("fecha"),
+                    "monto_bruto": b.get("monto_bruto") or 0,
+                    "actualizado_en": datetime.now().isoformat(),
+                })
+            self.client.table("boletas_recibidas_cache")\
+                .upsert(filas, on_conflict="receptor_usuario_id,periodo,folio,emisor_rut")\
+                .execute()
+        except Exception as e:
+            logger.error(f"Error al guardar cache de boletas recibidas: {e}")
+
+    def listar_boletas_recibidas_cache(self, usuario_id: str, periodo: str) -> list[dict]:
+        """Lee las boletas recibidas ya guardadas localmente para este periodo.
+        NO hace ninguna llamada al SII, no tiene costo.
+
+        OJO (bug encontrado 02-10-2026): antes no se seleccionaba la columna 'codigo',
+        asi que Ver PDF / Descargar siempre caian al folio como codigo de respaldo
+        (el folio NO sirve como codigo real del documento ante el SII) y el PDF
+        fallaba. Se agrega 'codigo' al select."""
+        try:
+            res = self.client.table("boletas_recibidas_cache")\
+                .select("folio, emisor_rut, emisor_nombre, fecha, monto_bruto, estado, codigo, actualizado_en")\
+                .eq("receptor_usuario_id", usuario_id)\
+                .eq("periodo", periodo)\
+                .order("fecha", desc=True)\
+                .execute()
+            return res.data or []
+        except Exception as e:
+            logger.error(f"Error al listar cache de boletas recibidas: {e}")
+            return []
+
+    def boletas_mes_receptor(self, rut: str, anio: int, mes: int) -> list[dict]:
+        """Devuelve las boletas YA EMITIDAS donde este RUT es el receptor (quien recibio
+        el pago), filtradas al mes/anio dado. Usa el mismo cruce por rut_hash que el rol
+        'cliente', para no descifrar toda la tabla de receptores."""
+        import calendar
+        primer_dia = f"{anio:04d}-{mes:02d}-01"
+        ultimo_dia = f"{anio:04d}-{mes:02d}-{calendar.monthrange(anio, mes)[1]:02d}"
+        try:
+            res = self.client.table("boletas")\
+                .select("id, folio_sii, fecha_emision, monto_bruto, monto_retenido, monto_liquido, estado, receptores!inner(rut_hash)")\
+                .eq("receptores.rut_hash", hash_rut(rut))\
+                .gte("fecha_emision", primer_dia)\
+                .lte("fecha_emision", ultimo_dia)\
+                .order("fecha_emision", desc=True)\
+                .execute()
+            return res.data or []
+        except Exception as e:
+            logger.error(f"Error al consultar resumen de ingresos del receptor: {e}")
+            return []
+
     def obtener_boletas_por_rol(self, rol: str, usuario_id: str, rut: str = "") -> list[dict]:
         """Recupera las boletas aplicando los permisos estrictos de cada rol."""
         def _preparar(filas):

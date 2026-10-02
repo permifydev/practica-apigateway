@@ -40,6 +40,48 @@ def formato_rut(rut: str) -> str:
     return re.sub(r"[.\s]", "", rut).upper() if rut else ""
 
 
+def formato_rut_puntos(rut_crudo: str) -> str:
+    """Formatea SOLO digitos (+ opcional K final) a RUT con puntos y guion mientras
+    el usuario escribe, ej. '123456789' -> '12.345.678-9'. No valida el digito
+    verificador (eso lo sigue haciendo validar_rut al enviar el formulario), solo
+    da formato visual en vivo."""
+    solo_validos = re.sub(r"[^0-9kK]", "", rut_crudo or "").upper()[:9]  # 8 digitos + DV
+    if len(solo_validos) <= 1:
+        return solo_validos
+
+    cuerpo, dv = solo_validos[:-1], solo_validos[-1]
+    partes = []
+    while len(cuerpo) > 3:
+        partes.insert(0, cuerpo[-3:])
+        cuerpo = cuerpo[:-3]
+    if cuerpo:
+        partes.insert(0, cuerpo)
+    return ".".join(partes) + "-" + dv
+
+
+def activar_formato_rut_en_vivo(campo) -> None:
+    """Conecta un ft.TextField para que el usuario solo tenga que tipear numeros
+    (y la K si corresponde): los puntos y el guion se agregan solos mientras
+    escribe. Uso: activar_formato_rut_en_vivo(mi_campo_rut) justo despues de
+    crear el TextField, antes de usarlo en el layout.
+
+    OJO: al reescribir field.value en cada tecla, el cursor del campo se va al
+    final del texto (Flet no permite fijar la posicion del cursor en un
+    TextField). Para un RUT (corto, se escribe de corrido de izquierda a
+    derecha) no se nota en la practica."""
+    on_change_previo = campo.on_change
+
+    def on_change(e):
+        formateado = formato_rut_puntos(campo.value)
+        if formateado != campo.value:
+            campo.value = formateado
+            campo.update()
+        if on_change_previo:
+            on_change_previo(e)
+
+    campo.on_change = on_change
+
+
 def parse_monto(texto):
     """Convierte cualquier entrada a entero descartando caracteres no numéricos."""
     if not texto:

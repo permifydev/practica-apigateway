@@ -7,7 +7,7 @@ from src.components.ui import stat_card, quick_action, pending_row
 PANTALLAS_DISPONIBLES = [
     "Inicio", "Emitir BHE", "Mis BHE", "Certificados",
     "Receptores", "Perfil", "Boletas Recibidas", "Verificar Autenticidad",
-    "Solicitar emisión BHE",
+    "Solicitar emisión BHE", "Resumen ingresos",
 ]
 
 def build_home(page: ft.Page, state: dict, navigate_to):
@@ -250,6 +250,7 @@ alignment=ft.alignment.Alignment(0, 0),
         subtitulo_rol = "Portal de solicitud de boletas de honorarios."
         quick_actions_list = [
             quick_action("+ Solicitar emisión de BHE", on_click=lambda e: navigate_to("Solicitar emisión BHE")),
+            quick_action("Ver resumen de ingresos", on_click=lambda e: navigate_to("Resumen ingresos")),
         ]
     else:  # cliente
         subtitulo_rol = "Portal de consulta de boletas recibidas."
