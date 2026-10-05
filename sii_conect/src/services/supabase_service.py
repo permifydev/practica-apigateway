@@ -419,6 +419,42 @@ class SupabaseService:
             logger.error(f"Error al listar cache de boletas recibidas: {e}")
             return []
 
+    def obtener_mi_empresa(self, usuario_id: str) -> dict | None:
+        """Empresa a la que pertenece el usuario logueado (perfiles.empresa_id ->
+        empresas). Devuelve {'id','nombre','rut','direccion','comision_pct'} o None
+        si el perfil todavia no tiene empresa asignada. Requiere la migracion 004."""
+        try:
+            res = self.client.table("perfiles")\
+                .select("empresa_id, empresas(id, nombre, rut, direccion, comision_pct)")\
+                .eq("id", usuario_id)\
+                .execute()
+            if not res.data:
+                return None
+            emp = res.data[0].get("empresas")
+            if isinstance(emp, list):
+                emp = emp[0] if emp else None
+            return emp or None
+        except Exception as e:
+            logger.error(f"Error al obtener empresa del usuario: {e}")
+            return None
+
+    def resumen_ingresos_mes(self, empresa_id: str, anio: int, mes: int) -> list[dict]:
+        """Ventas del mes por usuario para la empresa, con comision y monto para el
+        usuario ya calculados (vista v_resumen_ingresos). Solo lee Supabase: NO
+        llama al SII y no gasta creditos."""
+        try:
+            periodo = date(anio, mes, 1).isoformat()
+            res = self.client.table("v_resumen_ingresos")\
+                .select("emisor_id, usuario_nombre, usuario_email, total_ventas, comision_pct, comision, monto_usuario")\
+                .eq("empresa_id", empresa_id)\
+                .eq("periodo", periodo)\
+                .order("usuario_nombre")\
+                .execute()
+            return res.data or []
+        except Exception as e:
+            logger.error(f"Error al obtener resumen de ingresos: {e}")
+            return []
+
     def boletas_mes_receptor(self, rut: str, anio: int, mes: int) -> list[dict]:
         """Devuelve las boletas YA EMITIDAS donde este RUT es el receptor (quien recibio
         el pago), filtradas al mes/anio dado. Usa el mismo cruce por rut_hash que el rol
