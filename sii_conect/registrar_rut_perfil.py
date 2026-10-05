@@ -17,7 +17,7 @@ from supabase import create_client
 load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
 from src.utils.crypto_rut import cifrar_rut, normalizar_rut
-from src.utils.helpers import validar_rut
+from src.utils.helpers import validar_rut, formato_rut_puntos
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
@@ -30,7 +30,7 @@ if not SERVICE_KEY:
 db = create_client(SUPABASE_URL, SERVICE_KEY)
 
 email = input("Correo del perfil a actualizar: ").strip().lower()
-rut = getpass.getpass("RUT (ej. 12.345.678-9, no se muestra en pantalla): ").strip()
+rut = formato_rut_puntos(getpass.getpass("RUT (solo numeros, ej. 123456789; no se muestra en pantalla): "))
 
 if not validar_rut(rut):
     raise SystemExit("Ese RUT no es valido (revisa el digito verificador).")

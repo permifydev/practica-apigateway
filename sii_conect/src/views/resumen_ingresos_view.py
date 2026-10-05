@@ -2,7 +2,7 @@ from datetime import date
 import flet as ft
 from src.utils.constants import NAVY, GREEN, ORANGE, GREY_TEXT, CARD_RADIUS
 from src.services.supabase_service import SupabaseService
-from src.utils.helpers import formato_clp
+from src.utils.helpers import formato_clp, formato_rut_puntos
 
 db_service = SupabaseService()
 
@@ -206,7 +206,7 @@ def build_resumen_ingresos(page: ft.Page, state: dict, navigate_to):
         bgcolor="white", border_radius=CARD_RADIUS, padding=20, width=ancho_tarjeta(),
         content=ft.Column([
             ft.Text(empresa.get("nombre", ""), size=13, weight=ft.FontWeight.BOLD, color=NAVY),
-            ft.Text(f"RUT {empresa.get('rut', '---')}", size=11, color=GREY_TEXT),
+            ft.Text(f"RUT {formato_rut_puntos(empresa.get('rut') or '') or '---'}", size=11, color=GREY_TEXT),
             selector_periodo,
             ft.Divider(height=1, color="#EEF0F3"),
             filas_usuarios,

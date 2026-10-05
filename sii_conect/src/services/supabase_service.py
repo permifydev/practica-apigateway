@@ -6,6 +6,33 @@ from src.utils.crypto_rut import cifrar_rut, descifrar_rut, hash_rut
 
 logger = logging.getLogger(__name__)
 
+def _periodo_a_fecha(periodo) -> str:
+    """'YYYYMM' (o 'YYYYMMDD', o una date) -> 'YYYY-MM-01'. Desde la migracion 005
+    todas las columnas 'periodo' son date (primer dia del mes)."""
+    if isinstance(periodo, date):
+        return periodo.replace(day=1).isoformat()
+    txt = str(periodo).replace("-", "").strip()
+    return f"{txt[0:4]}-{txt[4:6]}-01"
+
+
+def _fecha_a_iso(valor) -> str | None:
+    """Fecha del SII -> 'YYYY-MM-DD' (columna date). Acepta '2026-07-28',
+    '28/07/2026', '28-07-2026' o '28 jul 2026'. None si no se reconoce."""
+    if not valor:
+        return None
+    if isinstance(valor, date):
+        return valor.isoformat()
+    txt = str(valor).strip()
+    for formato in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(txt[:10], formato).date().isoformat()
+        except ValueError:
+            pass
+    from src.utils.helpers import parse_fecha_bhe
+    f = parse_fecha_bhe(txt)
+    return None if f == date.min else f.isoformat()
+
+
 class SupabaseService:
     def __init__(self):
         # Un solo cliente compartido para toda la app (definido una vez en config.py).
@@ -337,6 +364,8 @@ class SupabaseService:
                 "monto_bruto": monto_bruto,
                 "monto_liquido": monto_liquido,
                 "estado": "pendiente",
+                # empresa_id y periodo los completa solo el trigger de la migracion 005
+                # (busca la empresa por empresa_rut_hash; la RLS no deja hacerlo aca).
             }
             response = self.client.table("solicitudes_bhe").insert(payload).execute()
             return response.data[0] if (response and response.data) else None
@@ -381,20 +410,24 @@ class SupabaseService:
                 rut_raw = b.get("rut")
                 dv_raw = b.get("dv")
                 emisor_rut = f"{rut_raw}-{str(dv_raw).upper()}" if rut_raw else ""
+                # Migracion 006: el RUT del emisor se guarda cifrado + hash (el hash
+                # es parte de la clave unica del upsert, el cifrado no sirve para
+                # eso porque cambia cada vez).
                 filas.append({
                     "receptor_usuario_id": usuario_id,
-                    "periodo": periodo,
+                    "periodo": _periodo_a_fecha(periodo),
                     "folio": str(b.get("folio") or ""),
-                    "emisor_rut": emisor_rut,
+                    "emisor_rut_cifrado": cifrar_rut(emisor_rut),
+                    "emisor_rut_hash": hash_rut(emisor_rut),
                     "codigo": (str(b.get("codigo")) if b.get("codigo") else None),
                     "estado": str(b.get("estado") or ""),
                     "emisor_nombre": b.get("nombre") or "Sin Nombre",
-                    "fecha": b.get("fecha"),
+                    "fecha": _fecha_a_iso(b.get("fecha")),
                     "monto_bruto": b.get("monto_bruto") or 0,
                     "actualizado_en": datetime.now().isoformat(),
                 })
             self.client.table("boletas_recibidas_cache")\
-                .upsert(filas, on_conflict="receptor_usuario_id,periodo,folio,emisor_rut")\
+                .upsert(filas, on_conflict="receptor_usuario_id,periodo,folio,emisor_rut_hash")\
                 .execute()
         except Exception as e:
             logger.error(f"Error al guardar cache de boletas recibidas: {e}")
@@ -409,12 +442,17 @@ class SupabaseService:
         fallaba. Se agrega 'codigo' al select."""
         try:
             res = self.client.table("boletas_recibidas_cache")\
-                .select("folio, emisor_rut, emisor_nombre, fecha, monto_bruto, estado, codigo, actualizado_en")\
+                .select("folio, emisor_rut_cifrado, emisor_nombre, fecha, monto_bruto, estado, codigo, actualizado_en")\
                 .eq("receptor_usuario_id", usuario_id)\
-                .eq("periodo", periodo)\
+                .eq("periodo", _periodo_a_fecha(periodo))\
                 .order("fecha", desc=True)\
                 .execute()
-            return res.data or []
+            salida = []
+            for r in (res.data or []):
+                fila = dict(r)
+                fila["emisor_rut"] = descifrar_rut(fila.pop("emisor_rut_cifrado", None)) or ""
+                salida.append(fila)
+            return salida
         except Exception as e:
             logger.error(f"Error al listar cache de boletas recibidas: {e}")
             return []
@@ -425,7 +463,7 @@ class SupabaseService:
         si el perfil todavia no tiene empresa asignada. Requiere la migracion 004."""
         try:
             res = self.client.table("perfiles")\
-                .select("empresa_id, empresas(id, nombre, rut, direccion, comision_pct)")\
+                .select("empresa_id, empresas(id, nombre, rut_cifrado, direccion, comision_pct)")\
                 .eq("id", usuario_id)\
                 .execute()
             if not res.data:
@@ -433,7 +471,11 @@ class SupabaseService:
             emp = res.data[0].get("empresas")
             if isinstance(emp, list):
                 emp = emp[0] if emp else None
-            return emp or None
+            if not emp:
+                return None
+            emp = dict(emp)
+            emp["rut"] = descifrar_rut(emp.pop("rut_cifrado", None))
+            return emp
         except Exception as e:
             logger.error(f"Error al obtener empresa del usuario: {e}")
             return None

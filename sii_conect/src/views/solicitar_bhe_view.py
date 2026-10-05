@@ -1,7 +1,7 @@
 import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, GREY_TEXT, CARD_RADIUS, tasa_retencion_vigente
 from src.services.supabase_service import SupabaseService
-from src.utils.helpers import validar_rut, parse_monto, formato_clp
+from src.utils.helpers import validar_rut, parse_monto, formato_clp, activar_formato_rut_en_vivo
 
 db_service = SupabaseService()
 
@@ -46,6 +46,7 @@ def build_solicitar_bhe(page: ft.Page, state: dict, navigate_to):
     # --- Datos de la empresa/emisor a quien se le solicita ---
     empresa_nombre = ft.TextField(label="Nombre de la Empresa", hint_text="Constructora Andina Ltda.")
     empresa_rut = ft.TextField(label="RUT de la Empresa", hint_text="76.111.222-3")
+    activar_formato_rut_en_vivo(empresa_rut)  # solo se escriben numeros (y K)
     empresa_direccion = ft.TextField(label="Direccion de la Empresa", hint_text="Av. Principal 456")
 
     # --- Detalle del servicio ---
