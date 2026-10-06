@@ -1,0 +1,17 @@
+Hola {{ usuario_nombre }},
+
+{{ empresa_nombre }} te solicita emitir una boleta de honorarios electronica por tus ventas de {{ mes }}.
+
+Detalle:
+  Ventas del mes: {{ ventas }}
+  Comision plataforma ({{ comision_pct }}%): {{ comision }}
+  MONTO DE LA BOLETA A EMITIR: {{ monto_boleta }}
+
+Datos para emitir la boleta:
+  Receptor:   {{ empresa_nombre }}
+  RUT:        {{ empresa_rut }}
+  Direccion:  {{ empresa_direccion }}
+
+Puedes emitirla desde SII Connect > Notificaciones > Emitir BHE.
+
+Si tienes dudas, responde este correo.

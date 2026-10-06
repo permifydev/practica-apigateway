@@ -1,19 +1,27 @@
 import flet as ft
 from src.utils.constants import NAVY, BLUE, GREEN, ORANGE, PURPLE, GREY_TEXT, CARD_RADIUS, MENU_ACTIVE_BG, MENU_HOVER_BG, RED_TEXT
 from src.components.ui import stat_card, quick_action, pending_row
+from src.services.supabase_service import SupabaseService
+
+db_service = SupabaseService()
 
 
 
 PANTALLAS_DISPONIBLES = [
     "Inicio", "Emitir BHE", "Mis BHE", "Certificados",
     "Receptores", "Perfil", "Boletas Recibidas", "Verificar Autenticidad",
-    "Solicitar emisión BHE", "Resumen ingresos",
+    "Resumen ventas y comisiones", "Notificaciones",
 ]
 
 def build_home(page: ft.Page, state: dict, navigate_to):
     usuario_info = state.get("usuario", {})
     nombre_usuario = usuario_info.get("nombre") or state.get("nombre", "Usuario")
     rol_usuario = str(usuario_info.get("rol", "emisor")).lower()
+
+    # Notificaciones sin leer (hoy: solicitudes de BHE que le envia una empresa)
+    no_leidas = 0
+    if rol_usuario == "emisor" and usuario_info.get("id"):
+        no_leidas = db_service.contar_notificaciones_no_leidas(usuario_info["id"])
 
     drawer_open = {"value": True}
 
@@ -96,6 +104,8 @@ def build_home(page: ft.Page, state: dict, navigate_to):
         menu_controls.extend([
             menu_item(ft.Icons.ADD_CIRCLE_OUTLINE, "Emitir BHE"),
             menu_item(ft.Icons.DESCRIPTION_OUTLINED, "Mis BHE"),
+            menu_item(ft.Icons.NOTIFICATIONS_OUTLINED, "Notificaciones",
+                      badge=str(no_leidas) if no_leidas else None),
             menu_section_label("HERRAMIENTAS"),
             menu_item(ft.Icons.SHIELD_OUTLINED, "Certificados"),
             menu_item(ft.Icons.PEOPLE_OUTLINE, "Receptores"),
@@ -118,8 +128,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
         ])
     elif rol_usuario == "receptor":
         menu_controls.extend([
-            menu_item(ft.Icons.BAR_CHART, "Resumen ingresos"),
-            menu_item(ft.Icons.SEND_OUTLINED, "Solicitar emisión BHE"),
+            menu_item(ft.Icons.BAR_CHART, "Resumen ventas y comisiones"),
         ])
 
     menu_controls.extend([
@@ -215,11 +224,17 @@ alignment=ft.alignment.Alignment(0, 0),
                 ft.Row(
                     spacing=14,
                     controls=[
-                        ft.Stack(
-                            controls=[
-                                ft.Icon(ft.Icons.NOTIFICATIONS_OUTLINED, color=NAVY),
-                                ft.Container(width=8, height=8, bgcolor=RED_TEXT, border_radius=4, left=10, top=0),
-                            ]
+                        # Campana: el punto rojo solo aparece si hay notificaciones sin leer
+                        ft.Container(
+                            on_click=(lambda e: navigate_to("Notificaciones")) if rol_usuario == "emisor" else None,
+                            tooltip="Notificaciones" if rol_usuario == "emisor" else None,
+                            content=ft.Stack(
+                                controls=[
+                                    ft.Icon(ft.Icons.NOTIFICATIONS_OUTLINED, color=NAVY),
+                                    ft.Container(width=8, height=8, bgcolor=RED_TEXT, border_radius=4,
+                                                 left=10, top=0, visible=no_leidas > 0),
+                                ]
+                            ),
                         ),
                         ft.IconButton(
                             icon=ft.Icons.LOGOUT, icon_color=NAVY, icon_size=18,
@@ -237,6 +252,8 @@ alignment=ft.alignment.Alignment(0, 0),
         subtitulo_rol = "Resumen de emisión y actividad tributaria."
         quick_actions_list = [
             quick_action("+ Emitir boleta de honorario", on_click=lambda e: navigate_to("Emitir BHE")),
+            quick_action(f"Ver notificaciones ({no_leidas} sin leer)" if no_leidas else "Ver notificaciones",
+                         on_click=lambda e: navigate_to("Notificaciones")),
             quick_action("Ver mis boletas emitidas", on_click=lambda e: navigate_to("Mis BHE")),
             quick_action("Gestión de Certificado Digital", on_click=lambda e: navigate_to("Certificados")),
         ]
@@ -247,10 +264,10 @@ alignment=ft.alignment.Alignment(0, 0),
             quick_action("Verificar receptores activos", on_click=lambda e: navigate_to("Receptores")),
         ]
     elif rol_usuario == "receptor":
-        subtitulo_rol = "Portal de solicitud de boletas de honorarios."
+        subtitulo_rol = "Ventas de tus usuarios, comisiones y solicitudes de BHE."
         quick_actions_list = [
-            quick_action("+ Solicitar emisión de BHE", on_click=lambda e: navigate_to("Solicitar emisión BHE")),
-            quick_action("Ver resumen de ingresos", on_click=lambda e: navigate_to("Resumen ingresos")),
+            quick_action("Ver resumen de ventas y comisiones",
+                         on_click=lambda e: navigate_to("Resumen ventas y comisiones")),
         ]
     else:  # cliente
         subtitulo_rol = "Portal de consulta de boletas recibidas."

@@ -36,7 +36,7 @@ def build_receptores(page: ft.Page, state: dict, navigate_to):
 
     def cargar_lista():
         lista_container.controls.clear()
-        receptores = db_service.listar_receptores()
+        receptores = db_service.listar_receptores(usuario_info.get("id"))
         if not receptores:
             lista_container.controls.append(ft.Text("Aun no hay receptores registrados.", color=GREY_TEXT))
         for r in receptores:

@@ -132,10 +132,24 @@ class SupabaseService:
             logger.error(f"Error en obtener_o_crear_receptor: {e}")
             return None
 
-    def listar_receptores(self) -> list[dict]:
-        """Devuelve todos los receptores registrados, con el RUT ya descifrado."""
+    def listar_receptores(self, usuario_id: str) -> list[dict]:
+        """Receptores DEL USUARIO, con el RUT ya descifrado.
+
+        La tabla 'receptores' es un directorio global (cada RUT se guarda una sola
+        vez y lo comparten todos, para no duplicar). Pero cada usuario solo debe
+        ver los suyos: los que registro el mismo (usuario_id) y aquellos a los que
+        ya les emitio alguna boleta (boletas.receptor_id). Antes se mostraba el
+        directorio completo y un usuario veia los receptores de otro."""
         try:
-            res = self.client.table("receptores").select("id, rut_cifrado, nombre, email").order("nombre").execute()
+            propios = self.client.table("receptores").select("id")\
+                .eq("usuario_id", usuario_id).execute().data or []
+            usados = self.client.table("boletas").select("receptor_id")\
+                .eq("usuario_id", usuario_id).execute().data or []
+            ids = {r["id"] for r in propios} | {b["receptor_id"] for b in usados if b.get("receptor_id")}
+            if not ids:
+                return []
+            res = self.client.table("receptores").select("id, rut_cifrado, nombre, email")\
+                .in_("id", list(ids)).order("nombre").execute()
             receptores = []
             for r in (res.data or []):
                 fila = dict(r)
@@ -147,9 +161,17 @@ class SupabaseService:
             return []
 
     def crear_receptor(self, rut: str, nombre: str, email: str = "", usuario_id: str | None = None) -> dict | None:
-        """Crea un receptor nuevo, guardando el RUT cifrado (mas su hash para buscarlo)."""
+        """Crea un receptor nuevo, guardando el RUT cifrado (mas su hash para buscarlo).
+        Si ese RUT ya existe en el directorio global (lo registro otro usuario), no
+        lo duplica: devuelve el existente."""
         try:
             rut_clean = rut.strip()
+            existente = self.client.table("receptores").select("id, nombre, email")\
+                .eq("rut_hash", hash_rut(rut_clean)).execute().data
+            if existente:
+                fila = dict(existente[0])
+                fila["rut"] = rut_clean
+                return fila
             payload = {"rut_hash": hash_rut(rut_clean), "rut_cifrado": cifrar_rut(rut_clean), "nombre": nombre.strip()}
             if email:
                 payload["email"] = email.strip()
@@ -340,122 +362,87 @@ class SupabaseService:
             logger.error(f"Error al registrar evento de historial: {e}")
             return None
 
-    def crear_solicitud_bhe(self, receptor_usuario_id: str, receptor_nombre: str, receptor_rut: str,
-                             receptor_direccion: str, receptor_comuna: str, receptor_email: str,
-                             empresa_nombre: str, empresa_rut: str, empresa_direccion: str,
-                             descripcion_servicio: str, monto_bruto: float, monto_liquido: float) -> dict | None:
-        """Guarda una solicitud de emision de BHE hecha por un receptor (rol 'receptor').
-        El RUT propio del receptor y el RUT de la empresa solicitada se guardan cifrados;
-        el de la empresa ademas guarda su hash para poder ubicarla despues por RUT sin
-        descifrar toda la tabla (util cuando se construya la bandeja del emisor)."""
+    # ------------------------------------------------------------------
+    # Solicitudes de BHE (migracion 007): la EMPRESA le pide al USUARIO
+    # (emisor) que emita una BHE por lo que le corresponde de sus ventas.
+    # Los montos los calcula la BD (trigger calcular_solicitud_bhe) y la
+    # notificacion + el correo en cola los crea otro trigger
+    # (avisar_solicitud_bhe). Aca solo se indica empresa, usuario y mes.
+    # ------------------------------------------------------------------
+    def enviar_solicitud_bhe(self, empresa_id: str, emisor_id: str, anio: int, mes: int) -> tuple[bool, str]:
+        """Crea la solicitud. Devuelve (ok, mensaje para mostrar)."""
         try:
-            payload = {
-                "receptor_usuario_id": receptor_usuario_id,
-                "receptor_nombre": receptor_nombre.strip(),
-                "receptor_rut_cifrado": cifrar_rut(receptor_rut),
-                "receptor_direccion": receptor_direccion.strip(),
-                "receptor_comuna": receptor_comuna.strip(),
-                "receptor_email": receptor_email.strip() if receptor_email else None,
-                "empresa_nombre": empresa_nombre.strip(),
-                "empresa_rut_cifrado": cifrar_rut(empresa_rut),
-                "empresa_rut_hash": hash_rut(empresa_rut),
-                "empresa_direccion": empresa_direccion.strip(),
-                "descripcion_servicio": descripcion_servicio.strip(),
-                "monto_bruto": monto_bruto,
-                "monto_liquido": monto_liquido,
-                "estado": "pendiente",
-                # empresa_id y periodo los completa solo el trigger de la migracion 005
-                # (busca la empresa por empresa_rut_hash; la RLS no deja hacerlo aca).
-            }
-            response = self.client.table("solicitudes_bhe").insert(payload).execute()
-            return response.data[0] if (response and response.data) else None
+            self.client.table("solicitudes_bhe").insert({
+                "empresa_id": empresa_id,
+                "emisor_id": emisor_id,
+                "periodo": date(anio, mes, 1).isoformat(),
+            }).execute()
+            return True, "Solicitud enviada."
         except Exception as e:
-            logger.error(f"Error al crear solicitud de BHE: {e}")
-            return None
+            texto = str(e)
+            logger.error(f"Error al enviar solicitud de BHE: {texto}")
+            if "duplicate key" in texto or "23505" in texto:
+                return False, "Ya se envio una solicitud a este usuario para este mes."
+            if "no tiene ventas" in texto:
+                return False, "El usuario no tiene ventas registradas en este mes."
+            return False, "No se pudo enviar la solicitud. Intenta nuevamente."
 
-    def listar_mis_solicitudes_bhe(self, receptor_usuario_id: str) -> list[dict]:
-        """Devuelve las solicitudes de BHE hechas por este receptor, mas recientes primero,
-        con los RUT ya descifrados para mostrar en pantalla."""
+    # ------------------------------------------------------------------
+    # Notificaciones en la app (migracion 007)
+    # ------------------------------------------------------------------
+    def contar_notificaciones_no_leidas(self, usuario_id: str) -> int:
         try:
-            res = self.client.table("solicitudes_bhe")\
-                .select("id, empresa_nombre, empresa_rut_cifrado, empresa_direccion, "
-                        "descripcion_servicio, monto_bruto, monto_liquido, estado, fecha_solicitud")\
-                .eq("receptor_usuario_id", receptor_usuario_id)\
-                .order("fecha_solicitud", desc=True)\
+            res = self.client.table("notificaciones")\
+                .select("id", count="exact")\
+                .eq("usuario_id", usuario_id)\
+                .eq("leida", False)\
+                .execute()
+            return res.count or 0
+        except Exception as e:
+            logger.warning(f"No se pudieron contar las notificaciones: {e}")
+            return 0
+
+    def listar_notificaciones(self, usuario_id: str) -> list[dict]:
+        """Notificaciones del usuario, mas recientes primero, con el detalle de la
+        solicitud y de la empresa (RUT ya descifrado) para poder emitir la BHE."""
+        try:
+            res = self.client.table("notificaciones")\
+                .select("id, titulo, mensaje, leida, created_at, "
+                        "solicitudes_bhe(periodo, monto_ventas, comision_pct, monto_comision, "
+                        "monto_a_pagar, estado, empresas(nombre, rut_cifrado, direccion))")\
+                .eq("usuario_id", usuario_id)\
+                .order("created_at", desc=True)\
                 .execute()
             salida = []
             for r in (res.data or []):
                 fila = dict(r)
-                fila["empresa_rut"] = descifrar_rut(fila.pop("empresa_rut_cifrado", None))
+                sol = fila.pop("solicitudes_bhe", None) or {}
+                if isinstance(sol, list):
+                    sol = sol[0] if sol else {}
+                emp = sol.pop("empresas", None) or {}
+                if isinstance(emp, list):
+                    emp = emp[0] if emp else {}
+                fila["solicitud"] = sol
+                fila["empresa"] = {
+                    "nombre": emp.get("nombre"),
+                    "rut": descifrar_rut(emp.get("rut_cifrado")),
+                    "direccion": emp.get("direccion"),
+                }
                 salida.append(fila)
             return salida
         except Exception as e:
-            logger.error(f"Error al listar solicitudes de BHE: {e}")
+            logger.error(f"Error al listar notificaciones: {e}")
             return []
 
-    def guardar_boletas_recibidas_cache(self, usuario_id: str, periodo: str, boletas: list[dict]) -> None:
-        """Guarda (upsert) en Supabase el resultado de una consulta REAL al SII de boletas
-        recibidas. Asi, la proxima vez que se abra Resumen de Ingresos para este mismo
-        periodo, se lee de aqui (gratis) en vez de volver a gastar creditos de
-        apigateway.cl consultando al SII de nuevo."""
-        if not boletas:
-            return
+    def marcar_notificacion_leida(self, notificacion_id: str) -> bool:
         try:
-            filas = []
-            for b in boletas:
-                # La respuesta real del SII (confirmada con DEBUG RECIBIDAS RAW) no trae
-                # 'emisor' ni 'razon_social_emisor': trae 'rut' + 'dv' por separado y
-                # 'nombre'. Se arma el RUT igual que en el resto de la app (SIN puntos,
-                # con guion antes del DV).
-                rut_raw = b.get("rut")
-                dv_raw = b.get("dv")
-                emisor_rut = f"{rut_raw}-{str(dv_raw).upper()}" if rut_raw else ""
-                # Migracion 006: el RUT del emisor se guarda cifrado + hash (el hash
-                # es parte de la clave unica del upsert, el cifrado no sirve para
-                # eso porque cambia cada vez).
-                filas.append({
-                    "receptor_usuario_id": usuario_id,
-                    "periodo": _periodo_a_fecha(periodo),
-                    "folio": str(b.get("folio") or ""),
-                    "emisor_rut_cifrado": cifrar_rut(emisor_rut),
-                    "emisor_rut_hash": hash_rut(emisor_rut),
-                    "codigo": (str(b.get("codigo")) if b.get("codigo") else None),
-                    "estado": str(b.get("estado") or ""),
-                    "emisor_nombre": b.get("nombre") or "Sin Nombre",
-                    "fecha": _fecha_a_iso(b.get("fecha")),
-                    "monto_bruto": b.get("monto_bruto") or 0,
-                    "actualizado_en": datetime.now().isoformat(),
-                })
-            self.client.table("boletas_recibidas_cache")\
-                .upsert(filas, on_conflict="receptor_usuario_id,periodo,folio,emisor_rut_hash")\
-                .execute()
+            self.client.table("notificaciones").update({"leida": True}).eq("id", notificacion_id).execute()
+            return True
         except Exception as e:
-            logger.error(f"Error al guardar cache de boletas recibidas: {e}")
+            logger.error(f"Error al marcar notificacion como leida: {e}")
+            return False
 
-    def listar_boletas_recibidas_cache(self, usuario_id: str, periodo: str) -> list[dict]:
-        """Lee las boletas recibidas ya guardadas localmente para este periodo.
-        NO hace ninguna llamada al SII, no tiene costo.
 
-        OJO (bug encontrado 02-10-2026): antes no se seleccionaba la columna 'codigo',
-        asi que Ver PDF / Descargar siempre caian al folio como codigo de respaldo
-        (el folio NO sirve como codigo real del documento ante el SII) y el PDF
-        fallaba. Se agrega 'codigo' al select."""
-        try:
-            res = self.client.table("boletas_recibidas_cache")\
-                .select("folio, emisor_rut_cifrado, emisor_nombre, fecha, monto_bruto, estado, codigo, actualizado_en")\
-                .eq("receptor_usuario_id", usuario_id)\
-                .eq("periodo", _periodo_a_fecha(periodo))\
-                .order("fecha", desc=True)\
-                .execute()
-            salida = []
-            for r in (res.data or []):
-                fila = dict(r)
-                fila["emisor_rut"] = descifrar_rut(fila.pop("emisor_rut_cifrado", None)) or ""
-                salida.append(fila)
-            return salida
-        except Exception as e:
-            logger.error(f"Error al listar cache de boletas recibidas: {e}")
-            return []
 
     def obtener_mi_empresa(self, usuario_id: str) -> dict | None:
         """Empresa a la que pertenece el usuario logueado (perfiles.empresa_id ->
@@ -487,7 +474,8 @@ class SupabaseService:
         try:
             periodo = date(anio, mes, 1).isoformat()
             res = self.client.table("v_resumen_ingresos")\
-                .select("emisor_id, usuario_nombre, usuario_email, total_ventas, comision_pct, comision, monto_usuario")\
+                .select("emisor_id, usuario_nombre, usuario_email, total_ventas, comision_pct, comision, "
+                        "monto_usuario, estado_solicitud, solicitud_fecha")\
                 .eq("empresa_id", empresa_id)\
                 .eq("periodo", periodo)\
                 .order("usuario_nombre")\
@@ -497,25 +485,6 @@ class SupabaseService:
             logger.error(f"Error al obtener resumen de ingresos: {e}")
             return []
 
-    def boletas_mes_receptor(self, rut: str, anio: int, mes: int) -> list[dict]:
-        """Devuelve las boletas YA EMITIDAS donde este RUT es el receptor (quien recibio
-        el pago), filtradas al mes/anio dado. Usa el mismo cruce por rut_hash que el rol
-        'cliente', para no descifrar toda la tabla de receptores."""
-        import calendar
-        primer_dia = f"{anio:04d}-{mes:02d}-01"
-        ultimo_dia = f"{anio:04d}-{mes:02d}-{calendar.monthrange(anio, mes)[1]:02d}"
-        try:
-            res = self.client.table("boletas")\
-                .select("id, folio_sii, fecha_emision, monto_bruto, monto_retenido, monto_liquido, estado, receptores!inner(rut_hash)")\
-                .eq("receptores.rut_hash", hash_rut(rut))\
-                .gte("fecha_emision", primer_dia)\
-                .lte("fecha_emision", ultimo_dia)\
-                .order("fecha_emision", desc=True)\
-                .execute()
-            return res.data or []
-        except Exception as e:
-            logger.error(f"Error al consultar resumen de ingresos del receptor: {e}")
-            return []
 
     def obtener_boletas_por_rol(self, rol: str, usuario_id: str, rut: str = "") -> list[dict]:
         """Recupera las boletas aplicando los permisos estrictos de cada rol."""

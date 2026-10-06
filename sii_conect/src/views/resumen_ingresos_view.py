@@ -1,10 +1,16 @@
 from datetime import date
 import flet as ft
-from src.utils.constants import NAVY, GREEN, ORANGE, GREY_TEXT, CARD_RADIUS
+from src.utils.constants import NAVY, CARD_RADIUS
 from src.services.supabase_service import SupabaseService
+from src.services.correo_service import pedir_envio_correos
 from src.utils.helpers import formato_clp, formato_rut_puntos
 
 db_service = SupabaseService()
+
+# El jefe pidio TODOS los textos en negro (los grises no se leian bien).
+NEGRO = "#000000"
+ROJO = "#B00020"
+VERDE = "#0B6B3A"
 
 MESES_NOMBRE = [
     "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -22,6 +28,11 @@ def _num(valor) -> float:
         return 0.0
 
 
+def _txt(texto, size=13, bold=False, color=NEGRO, **kw):
+    return ft.Text(texto, size=size, color=color,
+                   weight=ft.FontWeight.BOLD if bold else ft.FontWeight.NORMAL, **kw)
+
+
 def _pantalla_mensaje(titulo: str, texto: str, navigate_to):
     return ft.Container(
         padding=40,
@@ -30,8 +41,8 @@ def _pantalla_mensaje(titulo: str, texto: str, navigate_to):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             alignment=ft.MainAxisAlignment.CENTER,
             controls=[
-                ft.Text(titulo, size=22, weight=ft.FontWeight.BOLD, color=NAVY),
-                ft.Text(texto, color=GREY_TEXT, text_align=ft.TextAlign.CENTER),
+                _txt(titulo, size=22, bold=True),
+                _txt(texto, text_align=ft.TextAlign.CENTER),
                 ft.Container(height=15),
                 ft.ElevatedButton("Volver al Inicio", on_click=lambda e: navigate_to("Inicio")),
             ],
@@ -40,60 +51,132 @@ def _pantalla_mensaje(titulo: str, texto: str, navigate_to):
 
 
 def build_resumen_ingresos(page: ft.Page, state: dict, navigate_to):
-    """Resumen de ingresos de la EMPRESA (segun el dibujo del jefe):
-    cuanto vendio cada usuario en el mes a traves de la empresa, el total, la
-    comision de la plataforma (15%) y lo que le corresponde a los usuarios.
-    Todo sale de Supabase (tabla ventas / vista v_resumen_ingresos):
-    NO consulta al SII, NO pide Clave SII y NO gasta creditos."""
+    """Pantalla unica "Resumen ventas y comisiones" (dibujo del jefe):
+
+        Usuario | Ventas | Comision plataforma | A pagar a usuarios | Solicitar BHE
+
+    ENVIAR SOLICITUD le pide al usuario que emita una BHE por "A pagar a usuarios".
+    La BD calcula los montos, crea la notificacion en la app y deja el correo en
+    cola (migracion 007). Todo sale de Supabase: no consulta al SII ni gasta creditos."""
     usuario_info = state.get("usuario", {})
     rol = str(usuario_info.get("rol", "")).lower()
 
     if rol not in ROLES_PERMITIDOS:
-        return _pantalla_mensaje(
-            "Acceso Denegado",
-            "El resumen de ingresos es solo para cuentas de empresa.",
-            navigate_to,
-        )
+        return _pantalla_mensaje("Acceso Denegado",
+                                 "Esta pantalla es solo para cuentas de empresa.", navigate_to)
 
     empresa = db_service.obtener_mi_empresa(usuario_info.get("id"))
     if not empresa:
         return _pantalla_mensaje(
             "Falta tu empresa",
-            "Tu cuenta todavia no esta asociada a una empresa. "
-            "Pidele al administrador que te la asigne.",
+            "Tu cuenta todavia no esta asociada a una empresa. Pidele al administrador que te la asigne.",
             navigate_to,
         )
 
     comision_pct = _num(empresa.get("comision_pct"))
 
-    # Por defecto se muestra el mes ANTERIOR (el mes ya cerrado), igual que en
-    # el ejemplo del jefe: en octubre se revisan los ingresos de septiembre.
+    # Por defecto el mes anterior (el mes ya cerrado): en octubre se pagan las ventas de septiembre.
     hoy = date.today()
     periodo_sel = {"anio": hoy.year if hoy.month > 1 else hoy.year - 1,
                    "mes": hoy.month - 1 if hoy.month > 1 else 12}
 
-    titulo_mes = ft.Text("", size=16, weight=ft.FontWeight.BOLD, color=NAVY)
-    filas_usuarios = ft.Column(spacing=0)
-    msg_status = ft.Text("", size=12, color=GREY_TEXT)
+    titulo_mes = _txt("", size=15, bold=True)
+    msg_status = _txt("")
 
-    texto_total = ft.Text("$0", size=15, weight=ft.FontWeight.BOLD, color=NAVY)
-    texto_comision = ft.Text("$0", size=15, weight=ft.FontWeight.BOLD, color=ORANGE)
-    texto_usuarios = ft.Text("$0", size=15, weight=ft.FontWeight.BOLD, color=GREEN)
+    tabla = ft.DataTable(
+        heading_row_height=44,
+        data_row_min_height=52,
+        data_row_max_height=60,
+        column_spacing=28,
+        horizontal_lines=ft.BorderSide(1, "#D0D4DC"),
+        heading_text_style=ft.TextStyle(color=NEGRO, size=13, weight=ft.FontWeight.BOLD),
+        data_text_style=ft.TextStyle(color=NEGRO, size=13),
+        columns=[
+            ft.DataColumn(_txt("Usuario", bold=True)),
+            ft.DataColumn(_txt("Ventas", bold=True), numeric=True),
+            ft.DataColumn(_txt(f"Comision plataforma: {comision_pct:g}%", bold=True), numeric=True),
+            ft.DataColumn(_txt("A pagar a usuarios", bold=True), numeric=True),
+            ft.DataColumn(_txt("Solicitar BHE", bold=True)),
+        ],
+        rows=[],
+    )
 
-    def fila(izq: str, der: str, negrita=False, color=NAVY, borde=True):
-        return ft.Container(
-            padding=ft.padding.symmetric(vertical=9),
-            border=ft.border.only(bottom=ft.BorderSide(1, "#EEF0F3")) if borde else None,
-            content=ft.Row(
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                controls=[
-                    ft.Text(izq, size=13, color=color,
-                            weight=ft.FontWeight.BOLD if negrita else ft.FontWeight.NORMAL,
-                            expand=True),
-                    ft.Text(der, size=13, color=color,
-                            weight=ft.FontWeight.BOLD if negrita else ft.FontWeight.NORMAL),
-                ],
-            ),
+    # ---------- Confirmacion antes de enviar ----------
+    pendiente = {"fila": None}
+    texto_confirmacion = _txt("")
+
+    def cerrar_confirmacion(e=None):
+        dialog_confirmar.open = False
+        page.update()
+
+    def confirmar_envio(e):
+        cerrar_confirmacion()
+        d = pendiente["fila"]
+        if not d:
+            return
+        ok, mensaje = db_service.enviar_solicitud_bhe(
+            empresa["id"], d["emisor_id"], periodo_sel["anio"], periodo_sel["mes"])
+        if ok:
+            # El correo ya quedo en cola en Supabase; se le pide a Django que lo
+            # envie ahora. Si Django no responde, se envia en la siguiente pasada.
+            msg_status.value = "Enviando correo..."
+            msg_status.color = NEGRO
+            page.update()
+            if pedir_envio_correos():
+                mensaje = "Solicitud enviada. El usuario recibio la notificacion en la app y el correo."
+            else:
+                mensaje = ("Solicitud enviada. El usuario ya la ve en sus notificaciones; "
+                           "el correo quedo en cola y se enviara en unos minutos.")
+        msg_status.value = mensaje
+        msg_status.color = VERDE if ok else ROJO
+        cargar()
+
+    dialog_confirmar = ft.AlertDialog(
+        modal=True,
+        title=_txt("Enviar solicitud de BHE", size=17, bold=True),
+        content=texto_confirmacion,
+        actions=[
+            ft.TextButton("Cancelar", on_click=cerrar_confirmacion,
+                          style=ft.ButtonStyle(color=NEGRO)),
+            ft.ElevatedButton("Enviar", on_click=confirmar_envio,
+                              style=ft.ButtonStyle(bgcolor=NAVY, color="white")),
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+
+    def abrir_confirmacion(d):
+        def handler(e):
+            pendiente["fila"] = d
+            nombre = d.get("usuario_nombre") or d.get("usuario_email") or "el usuario"
+            texto_confirmacion.value = (
+                f"Se le pedira a {nombre} emitir una boleta de honorarios por "
+                f"{formato_clp(_num(d.get('monto_usuario')))} "
+                f"(ventas de {MESES_NOMBRE[periodo_sel['mes']].lower()} {periodo_sel['anio']}).\n\n"
+                "Le llegara una notificacion en la app y un correo con el detalle."
+            )
+            # page.open()/page.close() no existen en esta version de Flet:
+            # overlay + open=True/False + update().
+            if dialog_confirmar not in page.overlay:
+                page.overlay.append(dialog_confirmar)
+            dialog_confirmar.open = True
+            page.update()
+        return handler
+
+    # ---------- Tabla ----------
+    def celda_solicitud(d):
+        if d.get("estado_solicitud"):
+            fecha = str(d.get("solicitud_fecha") or "")[:10]
+            if len(fecha) == 10:
+                fecha = f"{fecha[8:10]}/{fecha[5:7]}"
+            estado = {"pendiente": "Enviada", "emitida": "Emitida", "anulada": "Anulada"}.get(
+                d["estado_solicitud"], d["estado_solicitud"])
+            return _txt(f"{estado} {fecha}".strip(), bold=True,
+                        color=VERDE if d["estado_solicitud"] != "anulada" else ROJO)
+        return ft.ElevatedButton(
+            "ENVIAR SOLICITUD",
+            on_click=abrir_confirmacion(d),
+            style=ft.ButtonStyle(bgcolor=NAVY, color="white",
+                                 text_style=ft.TextStyle(size=12, weight=ft.FontWeight.BOLD)),
         )
 
     def cargar():
@@ -101,57 +184,57 @@ def build_resumen_ingresos(page: ft.Page, state: dict, navigate_to):
         titulo_mes.value = f"Ingresos mes {MESES_NOMBRE[mes]} {anio}"
 
         datos = db_service.resumen_ingresos_mes(empresa["id"], anio, mes)
-        filas_usuarios.controls.clear()
+        tabla.rows.clear()
 
-        if not datos:
-            msg_status.value = "No hay ventas registradas para este mes."
-            msg_status.color = GREY_TEXT
-            total = 0.0
+        for d in datos:
+            tabla.rows.append(ft.DataRow(cells=[
+                ft.DataCell(_txt(d.get("usuario_nombre") or d.get("usuario_email") or "---")),
+                ft.DataCell(_txt(formato_clp(_num(d.get("total_ventas"))))),
+                ft.DataCell(_txt(formato_clp(_num(d.get("comision"))))),
+                ft.DataCell(_txt(formato_clp(_num(d.get("monto_usuario"))), bold=True)),
+                ft.DataCell(celda_solicitud(d)),
+            ]))
+
+        if datos:
+            tabla.rows.append(ft.DataRow(cells=[
+                ft.DataCell(_txt("Total", bold=True)),
+                ft.DataCell(_txt(formato_clp(sum(_num(d.get("total_ventas")) for d in datos)), bold=True)),
+                ft.DataCell(_txt(formato_clp(sum(_num(d.get("comision")) for d in datos)), bold=True)),
+                ft.DataCell(_txt(formato_clp(sum(_num(d.get("monto_usuario")) for d in datos)), bold=True)),
+                ft.DataCell(_txt("")),
+            ]))
+            sin_datos.visible = False
+            tabla.visible = True
         else:
-            msg_status.value = f"{len(datos)} usuario(s) con ventas este mes."
-            msg_status.color = GREY_TEXT
-            filas_usuarios.controls.append(
-                fila("Usuario", "Ventas", negrita=True, color=GREY_TEXT)
-            )
-            for d in datos:
-                nombre = d.get("usuario_nombre") or d.get("usuario_email") or "---"
-                filas_usuarios.controls.append(
-                    fila(f"Ventas {nombre}", formato_clp(_num(d.get("total_ventas"))))
-                )
-            total = sum(_num(d.get("total_ventas")) for d in datos)
-
-        comision = round(total * comision_pct / 100)
-        texto_total.value = formato_clp(total)
-        texto_comision.value = formato_clp(comision)
-        texto_usuarios.value = formato_clp(total - comision)
+            sin_datos.visible = True
+            tabla.visible = False
         page.update()
 
-    def mes_anterior(e):
-        periodo_sel["mes"] -= 1
-        if periodo_sel["mes"] < 1:
-            periodo_sel["mes"] = 12
-            periodo_sel["anio"] -= 1
-        cargar()
+    sin_datos = _txt("No hay ventas registradas para este mes.", visible=False)
 
-    def mes_siguiente(e):
-        periodo_sel["mes"] += 1
-        if periodo_sel["mes"] > 12:
-            periodo_sel["mes"] = 1
-            periodo_sel["anio"] += 1
-        cargar()
+    # ---------- Selector de mes ----------
+    def mover_mes(delta):
+        def handler(e):
+            m = periodo_sel["mes"] + delta
+            a = periodo_sel["anio"]
+            if m < 1:
+                m, a = 12, a - 1
+            elif m > 12:
+                m, a = 1, a + 1
+            periodo_sel["mes"], periodo_sel["anio"] = m, a
+            msg_status.value = ""
+            cargar()
+        return handler
 
     def al_elegir_fecha(e):
         if date_picker.value:
             periodo_sel["anio"] = date_picker.value.year
             periodo_sel["mes"] = date_picker.value.month
+            msg_status.value = ""
             cargar()
 
-    date_picker = ft.DatePicker(
-        first_date=date(2020, 1, 1),
-        last_date=hoy,
-        value=hoy,
-        on_change=al_elegir_fecha,
-    )
+    date_picker = ft.DatePicker(first_date=date(2020, 1, 1), last_date=hoy, value=hoy,
+                                on_change=al_elegir_fecha)
 
     def abrir_calendario(e):
         if date_picker not in page.overlay:
@@ -160,67 +243,34 @@ def build_resumen_ingresos(page: ft.Page, state: dict, navigate_to):
         page.update()
 
     selector_periodo = ft.Row(
-        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        spacing=4,
         controls=[
-            ft.IconButton(icon=ft.Icons.CHEVRON_LEFT, on_click=mes_anterior),
-            ft.Row(
-                spacing=4,
-                controls=[
-                    titulo_mes,
-                    ft.IconButton(icon=ft.Icons.CALENDAR_MONTH, icon_size=18,
-                                  tooltip="Elegir otro mes", on_click=abrir_calendario),
-                ],
-            ),
-            ft.IconButton(icon=ft.Icons.CHEVRON_RIGHT, on_click=mes_siguiente),
+            ft.IconButton(icon=ft.Icons.CHEVRON_LEFT, icon_color=NEGRO, on_click=mover_mes(-1)),
+            titulo_mes,
+            ft.IconButton(icon=ft.Icons.CALENDAR_MONTH, icon_color=NEGRO, icon_size=18,
+                          tooltip="Elegir otro mes", on_click=abrir_calendario),
+            ft.IconButton(icon=ft.Icons.CHEVRON_RIGHT, icon_color=NEGRO, on_click=mover_mes(1)),
         ],
     )
 
-    bloque_totales = ft.Container(
-        bgcolor="#F1F3F6", border_radius=10,
-        padding=ft.padding.symmetric(vertical=6, horizontal=14),
+    tarjeta = ft.Container(
+        bgcolor="white", border_radius=CARD_RADIUS, padding=20,
         content=ft.Column(
-            spacing=0,
+            spacing=6,
             controls=[
-                ft.Row(alignment=ft.MainAxisAlignment.SPACE_BETWEEN, controls=[
-                    ft.Text("Total ventas", size=13, color=GREY_TEXT), texto_total]),
-                ft.Divider(height=10, color="#E2E5EA"),
-                ft.Row(alignment=ft.MainAxisAlignment.SPACE_BETWEEN, controls=[
-                    ft.Text(f"Comision plataforma: {comision_pct:g}%", size=13, color=GREY_TEXT),
-                    texto_comision]),
-                ft.Divider(height=10, color="#E2E5EA"),
-                ft.Row(alignment=ft.MainAxisAlignment.SPACE_BETWEEN, controls=[
-                    ft.Text("A pagar a usuarios", size=13, color=GREY_TEXT), texto_usuarios]),
+                _txt("Resumen ventas y comisiones", size=18, bold=True),
+                _txt(empresa.get("nombre", ""), size=14, bold=True),
+                _txt(f"RUT {formato_rut_puntos(empresa.get('rut') or '') or '---'}"),
+                ft.Container(height=4),
+                selector_periodo,
+                ft.Divider(height=1, color="#D0D4DC"),
+                # La tabla es ancha: en pantallas angostas se desplaza hacia el lado
+                ft.Row(controls=[tabla, sin_datos], scroll=ft.ScrollMode.AUTO),
+                ft.Container(height=4),
+                msg_status,
             ],
         ),
     )
-
-    # Responsive: mismo patron que solicitar_bhe_view
-    ANCHO_MAXIMO_TARJETA = 450
-
-    def ancho_tarjeta():
-        if page.width and page.width < ANCHO_MAXIMO_TARJETA + 40:
-            return page.width - 40
-        return ANCHO_MAXIMO_TARJETA
-
-    tarjeta = ft.Container(
-        bgcolor="white", border_radius=CARD_RADIUS, padding=20, width=ancho_tarjeta(),
-        content=ft.Column([
-            ft.Text(empresa.get("nombre", ""), size=13, weight=ft.FontWeight.BOLD, color=NAVY),
-            ft.Text(f"RUT {formato_rut_puntos(empresa.get('rut') or '') or '---'}", size=11, color=GREY_TEXT),
-            selector_periodo,
-            ft.Divider(height=1, color="#EEF0F3"),
-            filas_usuarios,
-            msg_status,
-            ft.Container(height=6),
-            bloque_totales,
-        ]),
-    )
-
-    def on_resize(e):
-        tarjeta.width = ancho_tarjeta()
-        page.update()
-
-    page.on_resized = on_resize
 
     cargar()
 
@@ -232,8 +282,8 @@ def build_resumen_ingresos(page: ft.Page, state: dict, navigate_to):
             scroll=ft.ScrollMode.AUTO,
             controls=[
                 ft.Row([
-                    ft.TextButton("Volver", on_click=lambda e: navigate_to("Inicio")),
-                    ft.Text("Resumen de Ingresos", size=18, weight=ft.FontWeight.BOLD, color=NAVY),
+                    ft.TextButton("Volver", on_click=lambda e: navigate_to("Inicio"),
+                                  style=ft.ButtonStyle(color=NEGRO)),
                 ]),
                 tarjeta,
             ],

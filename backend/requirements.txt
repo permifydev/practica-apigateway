@@ -1,0 +1,9 @@
+# Solo para correo_backend (NO va en el requirements.txt de la app Flet)
+django==6.0.*
+dj-database-url
+psycopg[binary]
+whitenoise
+supabase
+python-dotenv
+cryptography
+gunicorn

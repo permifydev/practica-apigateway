@@ -192,3 +192,5 @@ def mapear_estado_boleta(estado_api):
         "ANULADA": "anulada",
     }
     return mapa.get(estado_normalizado, "pendiente")
+
+
