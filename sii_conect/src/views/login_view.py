@@ -3,6 +3,16 @@ from src.utils.constants import NAVY, GREY_TEXT, RED_TEXT, CARD_RADIUS
 from src.services.supabase_service import SupabaseService
 
 def build_login(page: ft.Page, state: dict, navigate_to):
+    # Volver al login = cerrar sesion: se cierra la sesion de ESTA persona en
+    # Supabase (solo este navegador) y se limpia su 'state' (clave SII temporal,
+    # cache de PDF, boleta seleccionada, etc.) para que no le quede a nadie mas.
+    anterior = state.get("db_service")
+    if anterior is not None:
+        anterior.cerrar_sesion()
+    state.clear()
+
+    # Cliente propio de esta persona: al iniciar sesion se guarda en su 'state'
+    # y todas las pantallas lo toman con db_de_sesion(state).
     db_service = SupabaseService()
 
     def ir_a_password(e):
@@ -43,32 +53,26 @@ def build_login(page: ft.Page, state: dict, navigate_to):
             page.update()
             return
 
-        if db_service.client:
-            auth_user = db_service.iniciar_sesion(user_input, pass_input)
-            if not auth_user:
-                error_text.value = "Correo o contraseña incorrectos"
-                page.update()
-                return
+        auth_user = db_service.iniciar_sesion(user_input, pass_input)
+        if not auth_user:
+            error_text.value = "Correo o contraseña incorrectos"
+            page.update()
+            return
 
-            usuario_db = db_service.obtener_perfil_propio(auth_user["id"])
-            if not usuario_db:
-                error_text.value = (
-                    "Tu cuenta existe pero no tiene un perfil asociado en 'perfiles'. "
-                    "Contacta al administrador."
-                )
-                page.update()
-                return
-        else:
-            usuario_db = db_service.validar_usuario(user_input)
-            if not usuario_db:
-                error_text.value = "Acceso denegado: Usuario no registrado en el sistema"
-                page.update()
-                return
+        usuario_db = db_service.obtener_perfil_propio(auth_user["id"])
+        if not usuario_db:
+            db_service.cerrar_sesion()  # no queda una sesion abierta sin perfil
+            error_text.value = (
+                "Tu cuenta existe pero no tiene un perfil asociado en 'perfiles'. "
+                "Contacta al administrador."
+            )
+            page.update()
+            return
 
         state["logged_in"] = True
         state["usuario"] = usuario_db
         state["nombre"] = usuario_db.get("nombre", "Usuario")
-        page.session.set("db_service", db_service)
+        state["db_service"] = db_service  # su cliente, con SU sesion
         error_text.value = ""
         navigate_to("Inicio")
 

@@ -1,9 +1,8 @@
 import flet as ft
 from src.utils.constants import NAVY, BLUE, GREEN, ORANGE, PURPLE, GREY_TEXT, CARD_RADIUS, MENU_ACTIVE_BG, MENU_HOVER_BG, RED_TEXT
 from src.components.ui import stat_card, quick_action, pending_row
-from src.services.supabase_service import SupabaseService
+from src.services.supabase_service import db_de_sesion
 
-db_service = SupabaseService()
 
 
 
@@ -14,6 +13,7 @@ PANTALLAS_DISPONIBLES = [
 ]
 
 def build_home(page: ft.Page, state: dict, navigate_to):
+    db_service = db_de_sesion(state)  # cliente de ESTA persona (su sesion)
     usuario_info = state.get("usuario", {})
     nombre_usuario = usuario_info.get("nombre") or state.get("nombre", "Usuario")
     rol_usuario = str(usuario_info.get("rol", "emisor")).lower()

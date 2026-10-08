@@ -13,7 +13,7 @@ Los RUT se guardan cifrados
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django import forms
-
+from datetime import timezone
 from django.utils.html import format_html
 
 from correos.services import cliente_supabase, descifrar_rut, procesar_pendientes
@@ -201,7 +201,7 @@ class CorreoPendienteAdmin(SoloLectura):
 # ------------------------------------------------------- boletas (solo ver)
 @admin.register(Boleta)
 class BoletaAdmin(SoloLectura):
-    list_display = ("folio_sii", "fecha_emision", "usuario", "receptor", "bruto", "liquido",
+    list_display = ("folio_sii", "fecha", "usuario", "receptor", "bruto", "liquido",
                     "estado", "es_test", "tiene_pdf")
     list_filter = ("estado", "es_test")
     search_fields = ("folio_sii", "usuario__nombre_completo", "receptor__nombre")
@@ -215,6 +215,14 @@ class BoletaAdmin(SoloLectura):
     @admin.display(description="Liquido", ordering="monto_liquido")
     def liquido(self, obj):
         return clp(obj.monto_liquido)
+
+    @admin.display(description="Fecha emision", ordering="fecha_emision")
+    def fecha(self, obj):
+        """El SII entrega solo la fecha (sin hora) y se guarda como medianoche UTC.
+        Se muestra en UTC para que no aparezca como el dia anterior a las 21:00."""
+        if not obj.fecha_emision:
+            return "---"
+        return obj.fecha_emision.astimezone(timezone.utc).strftime("%d-%m-%Y")
 
     @admin.display(description="PDF", boolean=True)
     def tiene_pdf(self, obj):

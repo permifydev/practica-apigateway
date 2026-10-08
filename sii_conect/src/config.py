@@ -21,8 +21,12 @@ PROXY_URL = os.getenv("PROXY_URL")
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://tu-proyecto.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "tu_anon_key_aqui")
 
-# Inicializar y exportar el cliente de Supabase
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+def nuevo_cliente_supabase() -> Client:
+    """Crea un cliente de Supabase NUEVO. Cada persona conectada debe tener el
+    suyo (se guarda en su 'state' al iniciar sesion): el cliente guarda el token
+    de quien inicio sesion y lo manda en cada consulta, asi que si fuera uno solo
+    para todos, las consultas de una persona viajarian con la sesion de otra."""
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 

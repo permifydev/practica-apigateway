@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, date
 from supabase import Client
-from src.config import supabase as _shared_client
+from src.config import nuevo_cliente_supabase
 from src.utils.crypto_rut import cifrar_rut, descifrar_rut, hash_rut
 
 logger = logging.getLogger(__name__)
@@ -33,10 +33,21 @@ def _fecha_a_iso(valor) -> str | None:
     return None if f == date.min else f.isoformat()
 
 
+def db_de_sesion(state: dict) -> "SupabaseService":
+    """Devuelve el SupabaseService de la persona dueña de este 'state' (cada
+    navegador tiene el suyo). Lo crea login_view al iniciar sesion; si no hay
+    (pantalla abierta sin login), entrega uno sin sesion: RLS no le muestra nada."""
+    db = state.get("db_service")
+    if db is None:
+        db = SupabaseService()
+        state["db_service"] = db
+    return db
+
+
 class SupabaseService:
-    def __init__(self):
-        # Un solo cliente compartido para toda la app (definido una vez en config.py).
-        self.client: Client = _shared_client
+    def __init__(self, client: Client | None = None):
+        # Cliente propio de esta persona (con SU sesion). Ver db_de_sesion().
+        self.client: Client = client or nuevo_cliente_supabase()
 
     def iniciar_sesion(self, email: str, password: str) -> dict | None:
         """Inicia sesion real contra Supabase Auth. Devuelve {'id', 'email'} del usuario autenticado o None si fallan las credenciales."""
@@ -55,7 +66,12 @@ class SupabaseService:
     def cerrar_sesion(self):
         if self.client:
             try:
-                self.client.auth.sign_out()
+                # scope 'local': cierra solo ESTA sesion (este navegador), no las
+                # que la misma cuenta tenga abiertas en otros dispositivos.
+                try:
+                    self.client.auth.sign_out({"scope": "local"})
+                except TypeError:
+                    self.client.auth.sign_out()  # versiones antiguas sin 'scope'
             except Exception as e:
                 logger.error(f"Error al cerrar sesion: {e}")
 

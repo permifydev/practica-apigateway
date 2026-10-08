@@ -1,11 +1,11 @@
 import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, GREY_TEXT, CARD_RADIUS
-from src.services.supabase_service import SupabaseService
+from src.services.supabase_service import db_de_sesion
 
-db_service = SupabaseService()
 
 
 def build_perfil(page: ft.Page, state: dict, navigate_to):
+    db_service = db_de_sesion(state)  # cliente de ESTA persona (su sesion)
     usuario_info = state.get("usuario", {})
 
     nombre = ft.TextField(label="Nombre completo", value=usuario_info.get("nombre", ""), disabled=True)

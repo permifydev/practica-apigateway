@@ -1,9 +1,8 @@
 import flet as ft
 from src.utils.constants import NAVY, CARD_RADIUS
-from src.services.supabase_service import SupabaseService
+from src.services.supabase_service import db_de_sesion
 from src.utils.helpers import formato_clp, formato_rut_puntos
 
-db_service = SupabaseService()
 
 NEGRO = "#000000"
 
@@ -35,6 +34,7 @@ def _mes_texto(periodo: str | None) -> str:
 
 
 def build_notificaciones(page: ft.Page, state: dict, navigate_to):
+    db_service = db_de_sesion(state)  # cliente de ESTA persona (su sesion)
     """Notificaciones del usuario (emisor). Hoy el unico tipo es la solicitud de
     emision de BHE que le envia una empresa desde "Resumen ventas y comisiones":
     se muestra el detalle completo (empresa, RUT, direccion, mes y monto) para

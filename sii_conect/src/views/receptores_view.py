@@ -1,12 +1,12 @@
 import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, GREY_TEXT, CARD_RADIUS
-from src.services.supabase_service import SupabaseService
+from src.services.supabase_service import db_de_sesion
 from src.utils.helpers import validar_rut, activar_formato_rut_en_vivo
 
-db_service = SupabaseService()
 
 
 def build_receptores(page: ft.Page, state: dict, navigate_to):
+    db_service = db_de_sesion(state)  # cliente de ESTA persona (su sesion)
     usuario_info = state.get("usuario", {})
     rol = str(usuario_info.get("rol", "")).lower()
 

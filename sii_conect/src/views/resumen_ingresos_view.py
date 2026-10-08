@@ -1,11 +1,10 @@
 from datetime import date
 import flet as ft
 from src.utils.constants import NAVY, CARD_RADIUS
-from src.services.supabase_service import SupabaseService
+from src.services.supabase_service import db_de_sesion
 from src.services.correo_service import pedir_envio_correos
 from src.utils.helpers import formato_clp, formato_rut_puntos
 
-db_service = SupabaseService()
 
 # El jefe pidio TODOS los textos en negro (los grises no se leian bien).
 NEGRO = "#000000"
@@ -51,6 +50,7 @@ def _pantalla_mensaje(titulo: str, texto: str, navigate_to):
 
 
 def build_resumen_ingresos(page: ft.Page, state: dict, navigate_to):
+    db_service = db_de_sesion(state)  # cliente de ESTA persona (su sesion)
     """Pantalla unica "Resumen ventas y comisiones" (dibujo del jefe):
 
         Usuario | Ventas | Comision plataforma | A pagar a usuarios | Solicitar BHE

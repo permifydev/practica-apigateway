@@ -5,7 +5,9 @@ Ejecutar desde la carpeta sii_conect con: python diagnostico_supabase.py
 import logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
-from src.config import SUPABASE_URL, SUPABASE_KEY, supabase
+from src.config import SUPABASE_URL, SUPABASE_KEY, nuevo_cliente_supabase
+
+supabase = nuevo_cliente_supabase()
 
 print("=" * 60)
 print(f"SUPABASE_URL cargada: {SUPABASE_URL}")

@@ -2,13 +2,12 @@ import logging
 from datetime import datetime
 import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, CARD_RADIUS, GREY_TEXT, tasa_retencion_vigente
-from src.services.supabase_service import SupabaseService
+from src.services.supabase_service import db_de_sesion
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
 from src.utils.helpers import mapear_estado_boleta, mensaje_error_api, validar_rut, activar_formato_rut_en_vivo
 
 logger = logging.getLogger(__name__)
 
-db_service = SupabaseService()
 api_client = ApiGatewayClient()
 
 
@@ -40,6 +39,7 @@ def construir_payload_boleta(rut_receptor, nombre_receptor, direccion_receptor, 
 
 
 def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
+    db_service = db_de_sesion(state)  # cliente de ESTA persona (su sesion)
     usuario_info = state.get("usuario", {})
     rol = str(usuario_info.get("rol", "emisor")).lower()
 

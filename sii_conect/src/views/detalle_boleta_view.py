@@ -1,12 +1,11 @@
 import asyncio
 import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, GREY_TEXT, CARD_RADIUS
-from src.services.supabase_service import SupabaseService
+from src.services.supabase_service import db_de_sesion
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
 from src.utils.helpers import mapear_estado_boleta, mensaje_error_api, _abrir_url
 from src.utils.acciones_boleta import preparar_pdf, enviar_boleta_por_email
 
-db_service = SupabaseService()
 api_client = ApiGatewayClient()
 
 CAUSAS_ANULACION = {
@@ -17,6 +16,7 @@ CAUSAS_ANULACION = {
 
 
 def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
+    db_service = db_de_sesion(state)  # cliente de ESTA persona (su sesion)
     usuario_info = state.get("usuario", {})
     boleta = state.get("boleta_seleccionada")
 

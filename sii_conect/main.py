@@ -35,6 +35,17 @@ def main(page: ft.Page):
 
     state = {}
 
+    # Cuando Flet termina la sesion de este navegador (pestaña cerrada sin
+    # apretar "Cerrar sesion"), se cierra tambien su sesion en Supabase y se
+    # libera su cliente. Solo afecta a esta persona.
+    def al_cerrar_sesion_flet(e):
+        db = state.get("db_service")
+        if db is not None:
+            db.cerrar_sesion()
+        state.clear()
+
+    page.on_close = al_cerrar_sesion_flet
+
     # Un cambio de pantalla a la vez: si se hace doble clic en el menu (o un
     # segundo clic mientras la pantalla anterior aun se construye), Flet atiende
     # los dos clics en paralelo y quedaban DOS pantallas una debajo de la otra
@@ -72,8 +83,8 @@ def main(page: ft.Page):
             page.add(nueva)
             page.update()
 
-    # El login real de la app valida contra la tabla 'perfiles' (ver SupabaseService.validar_usuario
-    # en login_view.py), no contra Supabase Auth. Por eso la app siempre debe arrancar en Login.
+    # El login valida contra Supabase Auth y crea el cliente propio de esta
+    # persona (ver login_view.py). Por eso la app siempre debe arrancar en Login.
     navigate_to("Login")
 
 if __name__ == "__main__":

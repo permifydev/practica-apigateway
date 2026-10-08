@@ -2,12 +2,11 @@ import asyncio
 from datetime import date
 import flet as ft
 from src.utils.constants import NAVY, BLUE, GREEN, RED_TEXT, GREY_TEXT, CARD_RADIUS
-from src.services.supabase_service import SupabaseService
+from src.services.supabase_service import db_de_sesion
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
 from src.utils.helpers import mensaje_error_api, _abrir_url
 from src.utils.acciones_boleta import preparar_pdf, enviar_boleta_por_email, recordar_codigos
 
-db_service = SupabaseService()
 api_client = ApiGatewayClient()
 
 
@@ -26,6 +25,7 @@ def normalizar_rut(rut: str) -> str:
 
 
 def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
+    db_service = db_de_sesion(state)  # cliente de ESTA persona (su sesion)
     usuario_info = state.get("usuario", {})
     rol = str(usuario_info.get("rol", "emisor")).lower()
     usuario_id = usuario_info.get("id")
