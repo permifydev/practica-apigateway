@@ -7,13 +7,16 @@ Regla general: SOLO LECTURA, salvo lo que es seguro tocar a mano:
   - Solicitudes: cambiar el estado
   - Correos: reintentar o enviar ahora
 Lo que viene del SII (boletas, historial, certificados, cache) no se edita aca.
-Los RUT se guardan cifrados: el panel los muestra descifrados, solo para leer.
+Los RUT se guardan cifrados
 """
+
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django import forms
 
-from correos.services import descifrar_rut, formato_rut, procesar_pendientes
+from django.utils.html import format_html
+
+from correos.services import cliente_supabase, descifrar_rut, procesar_pendientes
 from .models import (Boleta, BoletaRecibida, CertificadoDigital, CorreoPendiente, Empresa,
                      HistorialBHE, Notificacion, Perfil, Receptor, SolicitudBHE, Venta)
 
@@ -26,7 +29,9 @@ def clp(valor):
 
 
 def rut_legible(cifrado):
-    return formato_rut(descifrar_rut(cifrado)) if cifrado else "---"
+    if not cifrado:
+        return "Sin RUT"
+    return "Registrado" if descifrar_rut(cifrado) else "No se puede leer"
 
 
 class SoloLectura(admin.ModelAdmin):
@@ -55,11 +60,11 @@ class SinCrearNiBorrar(admin.ModelAdmin):
 # ------------------------------------------------------------------ usuarios
 @admin.register(Perfil)
 class PerfilAdmin(SinCrearNiBorrar):
-    list_display = ("nombre_completo", "email", "rol", "empresa", "rut")
+    list_display = ("nombre_completo", "email", "rol", "empresa", "rut", "id")
     list_filter = ("rol", "empresa")
     search_fields = ("nombre_completo", "email")
-    fields = ("nombre_completo", "email", "rol", "estado", "empresa", "rut", "created_at")
-    readonly_fields = ("email", "rut", "created_at")
+    fields = ("id","nombre_completo", "email", "rol", "estado", "empresa", "rut", "created_at")
+    readonly_fields = ("id","email", "rut", "created_at")
 
     @admin.display(description="RUT")
     def rut(self, obj):
@@ -84,7 +89,8 @@ class EmpresaAdmin(SinCrearNiBorrar):
 
 @admin.register(Receptor)
 class ReceptorAdmin(SoloLectura):
-    list_display = ("nombre", "rut", "email")
+    list_display = ("nombre", "rut", "usuario", "email")
+    list_filter = ("usuario",)
     search_fields = ("nombre", "email")
     exclude = ("rut_cifrado", "rut_hash")
     readonly_fields = ("rut",)
@@ -196,10 +202,11 @@ class CorreoPendienteAdmin(SoloLectura):
 @admin.register(Boleta)
 class BoletaAdmin(SoloLectura):
     list_display = ("folio_sii", "fecha_emision", "usuario", "receptor", "bruto", "liquido",
-                    "estado", "es_test")
+                    "estado", "es_test", "tiene_pdf")
     list_filter = ("estado", "es_test")
     search_fields = ("folio_sii", "usuario__nombre_completo", "receptor__nombre")
     exclude = ("rut_emisor_cifrado",)
+    readonly_fields = ("ver_pdf",)
 
     @admin.display(description="Bruto", ordering="monto_bruto")
     def bruto(self, obj):
@@ -209,6 +216,24 @@ class BoletaAdmin(SoloLectura):
     def liquido(self, obj):
         return clp(obj.monto_liquido)
 
+    @admin.display(description="PDF", boolean=True)
+    def tiene_pdf(self, obj):
+        return bool(obj.pdf_path)
+
+    @admin.display(description="Abrir PDF")
+    def ver_pdf(self, obj):
+        """Enlace firmado (10 minutos) al PDF guardado en Storage. No llama a la
+        API del SII, asi que no gasta creditos."""
+        if not obj.pdf_path:
+            return "Sin PDF guardado"
+        try:
+            r = cliente_supabase().storage.from_("pdf_boletas").create_signed_url(obj.pdf_path, 600)
+            url = r.get("signedURL") or r.get("signedUrl") or r.get("signed_url")
+        except Exception as e:
+            return f"No se pudo generar el enlace: {e}"
+        if not url:
+            return "No se pudo generar el enlace."
+        return format_html('<a href="{}" target="_blank" rel="noopener">Abrir PDF (enlace valido 10 minutos)</a>', url)
 
 @admin.register(HistorialBHE)
 class HistorialBHEAdmin(SoloLectura):

@@ -197,6 +197,9 @@ class Boleta(models.Model):
     es_test = models.BooleanField(blank=True, null=True)
     respuesta_sii = models.JSONField(blank=True, null=True)
     rut_emisor_cifrado = models.TextField(blank=True, null=True)
+    
+    pdf_path = models.TextField(blank=True, null=True)
+       
     created_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:

@@ -347,6 +347,72 @@ class SupabaseService:
             logger.warning(f"No se pudo consultar el PDF en Supabase Storage: {e}")
             return None
 
+
+    BUCKET_PDF = "pdf_boletas"
+
+    @staticmethod
+    def ruta_pdf_boleta(usuario_id: str, boleta_id: str) -> str:
+        """Ruta nueva del PDF dentro del bucket: {usuario_id}/{boleta_id}.pdf"""
+        return f"{usuario_id}/{boleta_id}.pdf"
+
+    def urls_pdf_por_ruta(self, ruta: str, nombre_descarga: str) -> dict | None:
+        """Dos URLs firmadas (1 hora) del PDF guardado en 'ruta': 'ver' (se abre en
+        el navegador) y 'descarga' (se descarga con nombre_descarga).
+        Devuelve None si el archivo no existe o no hay permiso."""
+        def extraer(r):
+            return r.get("signedURL") or r.get("signedUrl") or r.get("signed_url")
+        try:
+            bucket = self.client.storage.from_(self.BUCKET_PDF)
+            ver = extraer(bucket.create_signed_url(ruta, 3600))
+            descarga = extraer(bucket.create_signed_url(ruta, 3600, {"download": nombre_descarga}))
+            return {"ver": ver, "descarga": descarga} if (ver and descarga) else None
+        except Exception as e:
+            logger.warning(f"No se pudo firmar el PDF '{ruta}': {e}")
+            return None
+
+    def existe_pdf(self, ruta: str) -> bool:
+        """True si el archivo 'ruta' (carpeta/nombre.pdf) existe en el bucket."""
+        try:
+            carpeta, nombre = ruta.rsplit("/", 1)
+            archivos = self.client.storage.from_(self.BUCKET_PDF).list(carpeta, {"search": nombre})
+            return any(a.get("name") == nombre for a in (archivos or []))
+        except Exception as e:
+            logger.warning(f"No se pudo consultar el PDF '{ruta}': {e}")
+            return False
+
+    def mover_pdf(self, ruta_origen: str, ruta_destino: str) -> bool:
+        """Mueve (renombra) un PDF dentro del bucket. True si resulto."""
+        try:
+            self.client.storage.from_(self.BUCKET_PDF).move(ruta_origen, ruta_destino)
+            return True
+        except Exception as e:
+            logger.error(f"No se pudo mover el PDF '{ruta_origen}' a '{ruta_destino}': {e}")
+            return False
+
+    def subir_pdf(self, ruta: str, pdf_bytes: bytes) -> bool:
+        """Sube el PDF a 'ruta' dentro del bucket. True si resulto."""
+        try:
+            self.client.storage.from_(self.BUCKET_PDF).upload(
+                path=ruta,
+                file=pdf_bytes,
+                file_options={"content-type": "application/pdf", "upsert": "true"},
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error al subir PDF a Supabase Storage ('{ruta}'): {e}")
+            return False
+
+    def guardar_pdf_path(self, boleta_id: str, ruta: str) -> bool:
+        """Anota en la boleta donde esta su PDF (columna pdf_path).
+        True solo si la fila realmente se actualizo (si RLS lo bloquea,
+        Supabase no da error: devuelve 0 filas)."""
+        try:
+            res = self.client.table("boletas").update({"pdf_path": ruta}).eq("id", boleta_id).execute()
+            return bool(res and res.data)
+        except Exception as e:
+            logger.error(f"Error al guardar pdf_path de la boleta {boleta_id}: {e}")
+            return False
+
     def registrar_evento_historial(self, boleta_id: str, usuario_id: str, tipo_evento: str, detalle: str = "") -> dict | None:
         """Registra un evento en historial_bhe."""
         try:
