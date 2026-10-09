@@ -16,7 +16,7 @@ from supabase import create_client
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
-from src.utils.crypto_rut import cifrar_rut, normalizar_rut
+from src.utils.crypto_rut import cifrar_rut
 from src.utils.helpers import validar_rut, formato_rut_puntos
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")

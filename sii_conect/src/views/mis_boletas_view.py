@@ -4,7 +4,7 @@ import flet as ft
 from src.utils.constants import NAVY, BLUE, GREEN, RED_TEXT, GREY_TEXT, CARD_RADIUS
 from src.services.supabase_service import db_de_sesion
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
-from src.utils.helpers import mensaje_error_api, _abrir_url, fecha_corta
+from src.utils.helpers import mensaje_error_api, _abrir_url, fecha_corta, es_boleta_demo
 from src.utils.acciones_boleta import preparar_pdf, enviar_boleta_por_email, recordar_codigos
 
 api_client = ApiGatewayClient()
@@ -132,10 +132,12 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
         page.update()
 
     async def accion_pdf(b, modo):
-        datos = datos_accion(b)
-        if not datos:
-            return
-        rut_b, clave = datos
+        # Sin exigir la Clave SII: si el PDF ya esta guardado se abre sin ella.
+        # Solo si hay que pedirlo al SII, preparar_pdf avisa que falta la clave.
+        clave = clave_para_acciones()
+        rut_b = b.get("rut_emisor") or rut_usuario
+        if clave:
+            state["clave_sii_temp"] = clave
         msg_acciones.value = f"Preparando PDF de la boleta #{b.get('folio_sii', '---')}..."
         msg_acciones.color = GREY_TEXT
         page.update()
@@ -237,6 +239,7 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
 
     def botones_accion(b):
         anulada = str(b.get("estado", "")).lower() == "anulada"
+        demo = es_boleta_demo(b)  # no existe en el SII: no se puede enviar desde alla
         estilo = ft.ButtonStyle(
             padding=ft.padding.symmetric(horizontal=6),
             text_style=ft.TextStyle(size=12, weight=ft.FontWeight.BOLD),
@@ -244,7 +247,8 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
         return ft.Row(
             spacing=0,
             controls=[
-                ft.TextButton("ENVIAR", on_click=abrir_dlg_email(b), disabled=anulada, style=estilo),
+                ft.TextButton("ENVIAR", on_click=abrir_dlg_email(b), disabled=anulada or demo, style=estilo,
+                              tooltip="Boleta demo: no existe en el SII" if demo else None),
                 ft.TextButton("DESCARGAR", on_click=handler_pdf(b, "descargar"), style=estilo),
                 ft.TextButton("VER PDF", on_click=handler_pdf(b, "ver"), style=estilo),
             ],
@@ -474,7 +478,7 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
                 ft.Row(
                     controls=[
                         ft.TextButton("Volver", on_click=lambda e: navigate_to("Inicio")),
-                        ft.Text(f"Historial de Boletas ({rol.capitalize()})", size=20, weight=ft.FontWeight.BOLD, color=NAVY)
+                        ft.Text("Mis BHE", size=20, weight=ft.FontWeight.BOLD, color=NAVY)
                     ]
                 ),
                 ft.Text(f"Mostrando documentos bajo la regla del rol: {rol}", size=12, color=GREY_TEXT),

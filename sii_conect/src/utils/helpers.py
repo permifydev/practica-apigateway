@@ -163,3 +163,9 @@ def fecha_corta(valor) -> str:
     if len(txt) >= 10 and txt[4] == "-" and txt[7] == "-":
         return f"{txt[8:10]}-{txt[5:7]}-{txt[0:4]}"
     return txt or "---"
+
+
+def es_boleta_demo(boleta: dict) -> bool:
+    """Boleta ficticia creada con crear_boletas_demo.py: no existe en el SII, asi que
+    Enviar por email (SII), Anular y pedir el PDF al SII no aplican."""
+    return bool((boleta.get("respuesta_sii") or {}).get("demo"))

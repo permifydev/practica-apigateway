@@ -1,6 +1,10 @@
 import flet as ft
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from src.utils.constants import NAVY, BLUE, GREEN, ORANGE, GREY_TEXT, CARD_RADIUS, MENU_ACTIVE_BG, MENU_HOVER_BG, RED_TEXT
 from src.components.ui import stat_card, quick_action, pending_row
+from src.utils.constants import tasa_retencion_vigente
+from src.utils.helpers import fecha_corta
 from src.services.supabase_service import db_de_sesion
 
 
@@ -22,6 +26,25 @@ def build_home(page: ft.Page, state: dict, navigate_to):
     no_leidas = 0
     if rol_usuario == "emisor" and usuario_info.get("id"):
         no_leidas = db_service.contar_notificaciones_no_leidas(usuario_info["id"])
+
+    # Resumen REAL del emisor (antes eran numeros de ejemplo fijos): sus boletas
+    # del mes actual que no esten anuladas, y sus ultimas 3 boletas. Solo lee
+    # Supabase: no llama al SII ni gasta creditos.
+    boletas_usuario = []
+    if rol_usuario == "emisor" and usuario_info.get("id"):
+        boletas_usuario = db_service.obtener_boletas_por_rol("emisor", usuario_info["id"])
+    mes_actual = date.today().strftime("%Y-%m")
+    del_mes = [b for b in boletas_usuario
+               if str(b.get("fecha_emision") or "")[:7] == mes_actual
+               and str(b.get("estado", "")).lower() != "anulada"]
+
+    def _clp(valor):
+        return "$" + f"{float(valor or 0):,.0f}".replace(",", ".")
+
+    total_bruto = sum(float(b.get("monto_bruto") or 0) for b in del_mes)
+    total_retenido = sum(float(b.get("monto_retenido") or 0) for b in del_mes)
+    hora = datetime.now(ZoneInfo("America/Santiago")).hour
+    saludo = "Buenos días" if 5 <= hora < 12 else ("Buenas tardes" if hora < 20 else "Buenas noches")
 
     drawer_open = {"value": True}
 
@@ -279,14 +302,17 @@ alignment=ft.alignment.Alignment(0, 0),
         content=ft.Column(
             spacing=14, horizontal_alignment=ft.CrossAxisAlignment.START,
             controls=[
-                ft.Text(f"Buenas tardes, {nombre_usuario}", size=22, weight=ft.FontWeight.BOLD, color=NAVY),
+                ft.Text(f"{saludo}, {nombre_usuario}", size=22, weight=ft.FontWeight.BOLD, color=NAVY),
                 ft.Text(subtitulo_rol, size=13, color=GREY_TEXT),
                 ft.Container(height=4),
 
-                stat_card("Cobrado este mes", "$1.240.000", GREEN, "+12% vs mes anterior", GREEN),
-                stat_card("Retención acumulada", "$189.100", ORANGE, "14.5% retención actual"),
-                stat_card("Documentos del mes", "5", BLUE, "Boletas procesadas"),
-                ft.Container(height=6),
+                *([
+                    stat_card("Emitido este mes (bruto)", _clp(total_bruto), GREEN, "Boletas del mes, sin las anuladas"),
+                    stat_card("Retención del mes", _clp(total_retenido), ORANGE,
+                              f"Tasa de retención vigente: {tasa_retencion_vigente() * 100:.2f}%".replace(".", ",")),
+                    stat_card("Documentos del mes", str(len(del_mes)), BLUE, "Boletas emitidas este mes"),
+                    ft.Container(height=6),
+                ] if rol_usuario == "emisor" else []),
 
                 ft.Container(
                     bgcolor="white", border_radius=CARD_RADIUS, padding=18, width=380,
@@ -302,6 +328,7 @@ alignment=ft.alignment.Alignment(0, 0),
                 ft.Container(height=6),
 
                 ft.Container(
+                    visible=rol_usuario == "emisor",
                     bgcolor="white", border_radius=CARD_RADIUS, padding=18, width=380,
                     shadow=ft.BoxShadow(blur_radius=12, color="#12000000", offset=ft.Offset(0, 3)),
                     content=ft.Column(
@@ -311,11 +338,15 @@ alignment=ft.alignment.Alignment(0, 0),
                                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                                 controls=[
                                     ft.Text("Últimos movimientos", size=15, weight=ft.FontWeight.BOLD, color=NAVY),
-                                    ft.Text("Ver todos →", size=12, color=BLUE),
+                                    ft.TextButton("Ver todos", on_click=lambda e: navigate_to("Mis BHE")),
                                 ],
                             ),
-                            pending_row("Importadora Santa Cruz SpA", "Boleta #1205 · $1.200.000", "$1.200.000", "Vigente", "hace 2 días"),
-                            pending_row("Constructora Andina Ltda.", "Boleta #1204 · $850.000", "$850.000", "Vigente", "hace 5 días"),
+                            *([pending_row(b.get("contraparte_nombre") or "---",
+                                           f"Boleta #{b.get('folio_sii', '---')} · {_clp(b.get('monto_bruto'))}",
+                                           _clp(b.get("monto_bruto")), str(b.get("estado", "---")).capitalize(),
+                                           fecha_corta(b.get("fecha_emision")))
+                               for b in boletas_usuario[:3]]
+                              or [ft.Text("Todavía no hay boletas emitidas.", size=12, color=GREY_TEXT)]),
                         ],
                     ),
                 ),

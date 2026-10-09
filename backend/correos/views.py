@@ -1,5 +1,4 @@
 import hmac
-import json
 
 from django.conf import settings
 from django.http import JsonResponse
@@ -33,4 +32,4 @@ def enviar_pendientes(request):
 @require_GET
 def estado(request):
     """GET /correos/estado/ -> para comprobar que el servidor esta arriba."""
-    return JsonResponse({"ok": True, "servicio": "correo_backend"})
+    return JsonResponse({"ok": True, "servicio": "backend"})

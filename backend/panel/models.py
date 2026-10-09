@@ -224,8 +224,8 @@ class HistorialBHE(models.Model):
     class Meta:
         managed = False
         db_table = "historial_bhe"
-        verbose_name = "evento de boleta"
-        verbose_name_plural = "historial de boletas"
+        verbose_name = "movimiento de boleta"
+        verbose_name_plural = "movimientos de boletas"
         ordering = ["-fecha"]
 
 

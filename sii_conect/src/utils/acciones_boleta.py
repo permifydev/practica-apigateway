@@ -10,7 +10,7 @@ import logging
 from datetime import date
 
 from src.services.api_gateway import ApiGatewayError
-from src.utils.helpers import CARPETA_ASSETS_PDF
+from src.utils.helpers import CARPETA_ASSETS_PDF, es_boleta_demo
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,7 @@ def preparar_pdf(api_client, db_service, state: dict, boleta: dict,
          (ruta nueva, o ruta antigua {usuario_id}/{folio}.pdf que se mueve)
       4. pedirlo al SII (cobra 1 vez), guardarlo y anotar pdf_path
     origen: 'memoria' | 'supabase' (sin costo) | 'sii' (se pidio al SII).
+    La Clave SII solo se necesita en el paso 4: un PDF ya guardado se abre sin ella.
     Lanza ApiGatewayError si el SII rechaza la peticion."""
     folio = str(boleta.get("folio_sii"))
     boleta_id = str(boleta.get("id") or "")
@@ -98,6 +99,13 @@ def preparar_pdf(api_client, db_service, state: dict, boleta: dict,
             return {**urls, "origen": "supabase", "mensaje": "PDF listo (ya estaba guardado en Supabase)."}
 
     # 4. No esta en ningun lado: se pide al SII (aqui se gastan creditos, 1 sola vez)
+    if es_boleta_demo(boleta):
+        return {"ver": None, "descarga": None, "origen": "supabase",
+                "mensaje": "Esta boleta demo no tiene PDF maqueta. Vuelve a correr crear_boletas_demo.py."}
+    if not clave or not rut_emisor:
+        return {"ver": None, "descarga": None, "origen": "supabase", "pide_clave": True,
+                "mensaje": "Esta boleta aun no tiene PDF guardado. Para pedirlo al SII ingresa tu "
+                           "Clave SII (consume creditos de la API, una sola vez por boleta)."}
     codigo = codigo_sii_de_boleta(api_client, state, boleta, rut_emisor, clave)
     resultado = api_client.descargar_pdf(rut=rut_emisor, clave=clave, codigo=codigo)
     pdf_bytes = resultado.get("pdf_bytes")

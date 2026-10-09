@@ -1,10 +1,10 @@
-"""Le avisa a correo_backend (Django) que hay correos nuevos para enviar.
+"""Le avisa al backend Django (carpeta backend/) que hay correos nuevos para enviar.
 
 La solicitud y el correo en cola ya quedaron guardados en Supabase ANTES de
 llamar esto: si Django no esta corriendo o falla, no se pierde nada; el correo
 sigue 'pendiente' y sale en el siguiente envio (python manage.py enviar_correos).
 
-Variables en el .env (ver correo_backend/.env.example):
+Variables en el .env de la raiz del proyecto:
   CORREOS_API_URL    ej. http://127.0.0.1:8000/correos/enviar/
   CORREOS_API_TOKEN  el mismo valor que usa Django
 """
@@ -27,5 +27,5 @@ def pedir_envio_correos() -> bool:
         datos = r.json() if r.ok else {}
         return bool(datos.get("enviados"))
     except Exception as e:
-        logger.warning(f"correo_backend no respondio ({e}); el correo queda en cola")
+        logger.warning(f"El backend Django no respondio ({e}); el correo queda en cola")
         return False

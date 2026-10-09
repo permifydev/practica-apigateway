@@ -60,6 +60,7 @@ if not DATABASE_URL:
 DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=0)}
 
 LANGUAGE_CODE = "es"
+FORMAT_MODULE_PATH = ["config.formats"]  # fechas cortas (dd-mm-aaaa) en el panel
 TIME_ZONE = "America/Santiago"
 USE_I18N = True
 USE_TZ = True

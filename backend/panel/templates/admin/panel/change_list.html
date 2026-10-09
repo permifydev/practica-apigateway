@@ -1,0 +1,13 @@
+{% extends "admin/change_list.html" %}
+{% comment %}
+Listas del panel (todas las tablas de SII Connect): se ocultan los indicadores
+de orden de Django (el numero de prioridad y la flecha junto al titulo de la
+columna). El orden por defecto se mantiene y se puede seguir ordenando haciendo
+clic en el titulo de cada columna.
+{% endcomment %}
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  #result_list thead .sortoptions { display: none; }
+</style>
+{% endblock %}

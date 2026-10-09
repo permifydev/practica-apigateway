@@ -3,7 +3,7 @@ import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, GREY_TEXT, CARD_RADIUS
 from src.services.supabase_service import db_de_sesion
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
-from src.utils.helpers import mapear_estado_boleta, mensaje_error_api, _abrir_url, fecha_corta
+from src.utils.helpers import mapear_estado_boleta, mensaje_error_api, _abrir_url, fecha_corta, es_boleta_demo
 from src.utils.acciones_boleta import preparar_pdf, enviar_boleta_por_email
 
 api_client = ApiGatewayClient()
@@ -136,8 +136,9 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
         return True
 
     async def accion_ver_pdf(e):
-        if not validar_clave():
-            return
+        # Un PDF ya guardado se abre sin Clave SII; si se escribio una, se recuerda.
+        if clave_sii.value and not state.get("clave_sii_temp"):
+            validar_clave()
         btn_descargar_pdf.disabled = True
         msg_status.value = "Preparando PDF..."
         msg_status.color = GREY_TEXT
@@ -148,7 +149,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
                 rut_emisor_actual(), clave_actual(), usuario_info.get("id"),
             )
             msg_status.value = pdf["mensaje"]
-            msg_status.color = GREEN
+            msg_status.color = GREEN if pdf["ver"] else RED_TEXT
             link_ver_pdf.url = pdf["ver"]
             link_descargar_pdf.url = pdf["descarga"]
             fila_links_pdf.visible = bool(pdf["ver"])
@@ -279,6 +280,17 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
     def ancho_contenido():
         # Ancho util dentro de la tarjeta, descontando el padding=20 de cada lado.
         return ancho_tarjeta() - 40
+
+    # Una boleta anulada ya no se puede enviar ni anular de nuevo, y una boleta
+    # demo no existe en el SII: en esos casos solo queda disponible Ver PDF.
+    es_anulada = str(boleta.get("estado", "")).lower() == "anulada"
+    es_demo = es_boleta_demo(boleta)
+    if es_anulada or es_demo:
+        for control in (btn_enviar_email, toggle_anular_btn, email_destino):
+            control.disabled = True
+        msg_status.value = ("Boleta demo (no existe en el SII): solo se puede ver su PDF maqueta." if es_demo
+                            else "Boleta anulada: solo se puede ver su PDF.")
+        msg_status.color = GREY_TEXT
 
     toggle_anular_btn.width = ancho_contenido()
     btn_descargar_pdf.width = ancho_contenido()

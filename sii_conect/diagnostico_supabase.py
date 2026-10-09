@@ -15,12 +15,15 @@ print(f"SUPABASE_KEY cargada: {'SI (' + str(len(SUPABASE_KEY)) + ' caracteres)' 
 print("=" * 60)
 
 try:
-    res = supabase.table("perfiles").select("id, email, rut, rol").execute()
+    # El RUT esta cifrado (rut_cifrado): aca solo se muestra si existe, nunca el numero.
+    res = supabase.table("perfiles").select("id, email, rut_cifrado, rol").execute()
     print(f"\nConexion real: SI. Filas en 'perfiles': {len(res.data)}\n")
     for fila in res.data:
-        print(f"  - id={fila.get('id')} | email={fila.get('email')} | rut={fila.get('rut')} | rol={fila.get('rol')}")
+        rut = "registrado" if fila.get("rut_cifrado") else "sin RUT"
+        print(f"  - id={fila.get('id')} | email={fila.get('email')} | rut={rut} | rol={fila.get('rol')}")
     if not res.data:
-        print("  (la tabla esta vacia o RLS esta bloqueando el SELECT con tu SUPABASE_KEY actual)")
+        print("  (sin sesion, RLS no deja ver filas con la clave publica: lo normal es 0 filas."
+              " Si ves 0 igual la conexion funciona.)")
 except Exception as e:
     print(f"\nConexion real: FALLO. Error exacto:\n  {e}\n")
     print("Revisa: URL/KEY correctas, proyecto Supabase activo, y que la tabla 'perfiles' exista.")
