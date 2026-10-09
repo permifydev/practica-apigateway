@@ -1,4 +1,6 @@
 import flet as ft
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from src.utils.constants import NAVY, CARD_RADIUS
 from src.services.supabase_service import db_de_sesion
 from src.utils.helpers import formato_clp, formato_rut_puntos
@@ -22,6 +24,15 @@ def _num(valor) -> float:
         return float(valor or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _fecha_chile(valor) -> str:
+    """'2026-10-02T16:16:00+00:00' (UTC) -> '02-10-2026 13:16' (hora de Chile)."""
+    try:
+        fecha = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+        return fecha.astimezone(ZoneInfo("America/Santiago")).strftime("%d-%m-%Y %H:%M")
+    except (TypeError, ValueError):
+        return "---"
 
 
 def _mes_texto(periodo: str | None) -> str:
@@ -87,7 +98,23 @@ def build_notificaciones(page: ft.Page, state: dict, navigate_to):
                 fila_dato("Monto de la boleta a emitir", formato_clp(_num(sol.get("monto_a_pagar"))), bold=True),
             ]
 
-        fecha = str(n.get("created_at") or "")[:16].replace("T", " ")
+        fecha = _fecha_chile(n.get("created_at"))
+
+        def emitir_desde_solicitud(e):
+            """Abre Emitir BHE con los datos de la solicitud ya escritos (empresa,
+            RUT, direccion, monto y descripcion): el usuario solo revisa y emite."""
+            if sol:
+                state["prellenar_emision"] = {
+                    "rut": formato_rut_puntos(emp.get("rut") or ""),
+                    "nombre": emp.get("nombre") or "",
+                    "direccion": emp.get("direccion") or "",
+                    "monto": int(_num(sol.get("monto_a_pagar"))),
+                    "descripcion": f"Comision por ventas de {_mes_texto(sol.get('periodo'))}",
+                    "empresa": emp.get("nombre") or "la empresa",
+                }
+            if not n.get("leida"):
+                db_service.marcar_notificacion_leida(n["id"])
+            navigate_to("Emitir BHE")
 
         return ft.Container(
             bgcolor="white", border_radius=CARD_RADIUS, padding=18, width=450,
@@ -107,7 +134,7 @@ def build_notificaciones(page: ft.Page, state: dict, navigate_to):
                             btn_leida,
                             ft.ElevatedButton(
                                 "Emitir BHE",
-                                on_click=lambda e: navigate_to("Emitir BHE"),
+                                on_click=emitir_desde_solicitud,
                                 style=ft.ButtonStyle(bgcolor=NAVY, color="white"),
                             ),
                         ],

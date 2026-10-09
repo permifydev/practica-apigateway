@@ -89,6 +89,26 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
     )
     msg_status = ft.Text("", size=12)
 
+    # Si se llego desde una notificacion ("Emitir BHE" en una solicitud), los datos
+    # de la empresa y el monto vienen escritos. Se usan una sola vez.
+    datos_solicitud = state.pop("prellenar_emision", None)
+    aviso_solicitud = ft.Container(visible=False)
+    if datos_solicitud:
+        rut_receptor.value = datos_solicitud.get("rut", "")
+        nombre_receptor.value = datos_solicitud.get("nombre", "")
+        direccion_receptor.value = datos_solicitud.get("direccion", "")
+        descripcion_servicio.value = datos_solicitud.get("descripcion", "")
+        if datos_solicitud.get("monto"):
+            monto_bruto.value = str(datos_solicitud["monto"])
+        aviso_solicitud = ft.Container(
+            bgcolor="#EEF3FF", border_radius=10, padding=12,
+            content=ft.Text(
+                f"Datos cargados desde la solicitud de {datos_solicitud.get('empresa')}. "
+                "Revisa que esten correctos, completa la comuna e ingresa tu Clave SII.",
+                size=12, color=NAVY,
+            ),
+        )
+
     def procesar_emision(e):
         if not clave_sii.value:
             msg_status.value = "Ingresa tu Clave SII para autenticar la emision."
@@ -269,6 +289,7 @@ def build_emitir_bhe(page: ft.Page, state: dict, navigate_to):
         padding=20,
         width=ancho_tarjeta(),
         content=ft.Column([
+            aviso_solicitud,
             ft.Text("Emisor", size=13, weight=ft.FontWeight.BOLD, color=NAVY),
             rut_emisor_display,
             clave_sii,
