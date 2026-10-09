@@ -87,3 +87,11 @@ RUT_ENCRYPTION_KEY = os.getenv("RUT_ENCRYPTION_KEY", "")
 
 CORREOS_API_TOKEN = os.getenv("CORREOS_API_TOKEN", "")
 CORREOS_MAX_INTENTOS = 3
+
+# Sesion del panel: igual que la app, no queda guardada.
+# - Al cerrar el navegador se cierra la sesion (al volver pide usuario y clave).
+# - Si nadie usa el panel por 30 minutos, la sesion vence sola.
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_AGE = 30 * 60          # 30 minutos sin uso
+SESSION_SAVE_EVERY_REQUEST = True     # cada clic reinicia los 30 minutos
+

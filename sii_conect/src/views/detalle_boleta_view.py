@@ -58,7 +58,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
         visible=clave_ya_guardada,
         controls=[
             ft.Icon(ft.Icons.CHECK_CIRCLE, color=GREEN, size=16),
-            ft.Text("Clave SII verificada para esta sesion.", size=12, color=GREEN),
+            ft.Text("Clave SII ingresada para esta sesion.", size=12, color=GREEN),
         ]
     )
     cambiar_clave_btn = ft.TextButton("Cambiar clave", visible=clave_ya_guardada)
@@ -136,9 +136,9 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
         return True
 
     async def accion_ver_pdf(e):
-        # Un PDF ya guardado se abre sin Clave SII; si se escribio una, se recuerda.
-        if clave_sii.value and not state.get("clave_sii_temp"):
-            validar_clave()
+        # Se pide la Clave SII antes de ver o descargar, igual que en las demas acciones.
+        if not validar_clave():
+            return
         btn_descargar_pdf.disabled = True
         msg_status.value = "Preparando PDF..."
         msg_status.color = GREY_TEXT

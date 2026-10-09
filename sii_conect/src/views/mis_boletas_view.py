@@ -132,12 +132,11 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
         page.update()
 
     async def accion_pdf(b, modo):
-        # Sin exigir la Clave SII: si el PDF ya esta guardado se abre sin ella.
-        # Solo si hay que pedirlo al SII, preparar_pdf avisa que falta la clave.
-        clave = clave_para_acciones()
-        rut_b = b.get("rut_emisor") or rut_usuario
-        if clave:
-            state["clave_sii_temp"] = clave
+        # Se pide la Clave SII antes de ver o descargar, igual que para Enviar.
+        datos = datos_accion(b)
+        if not datos:
+            return
+        rut_b, clave = datos
         msg_acciones.value = f"Preparando PDF de la boleta #{b.get('folio_sii', '---')}..."
         msg_acciones.color = GREY_TEXT
         page.update()

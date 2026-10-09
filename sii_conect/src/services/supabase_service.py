@@ -73,22 +73,18 @@ class SupabaseService:
             logger.error(f"Error al obtener perfil propio: {e}")
             return None
 
-    def actualizar_perfil(self, usuario_id: str, email: str) -> dict | None:
-        """Actualiza el correo de contacto del perfil."""
-        try:
-            response = self.client.table("perfiles").update({"email": email}).eq("id", usuario_id).execute()
-            return response.data[0] if response.data else None
-        except Exception as e:
-            logger.error(f"Error al actualizar perfil: {e}")
-            return None
-
     def obtener_o_crear_receptor(self, rut: str, nombre: str, email: str = "", usuario_id: str | None = None) -> dict | None:
-        """Busca un receptor por RUT (via rut_hash, sin descifrar nada) o lo crea si no
-        existe. Garantiza devolver un dict con clave 'id' y 'rut' en texto plano."""
+        """Busca entre los receptores DEL USUARIO uno con ese RUT (via rut_hash, sin
+        descifrar nada) o lo crea a su nombre. Cada usuario tiene su propia lista:
+        la base de datos (RLS) no deja ver los receptores de otros.
+        Garantiza devolver un dict con clave 'id' y 'rut' en texto plano."""
         try:
             rut_clean = rut.strip()
             rut_h = hash_rut(rut_clean)
-            res = self.client.table("receptores").select("id, nombre, rut_cifrado").eq("rut_hash", rut_h).execute()
+            consulta = self.client.table("receptores").select("id, nombre, rut_cifrado").eq("rut_hash", rut_h)
+            if usuario_id:
+                consulta = consulta.eq("usuario_id", usuario_id)
+            res = consulta.execute()
             if res.data:
                 fila = res.data[0]
                 return {"id": fila["id"], "nombre": fila["nombre"], "rut": descifrar_rut(fila.get("rut_cifrado")) or rut_clean}
@@ -113,13 +109,10 @@ class SupabaseService:
             return None
 
     def listar_receptores(self, usuario_id: str) -> list[dict]:
-        """Receptores DEL USUARIO, con el RUT ya descifrado.
-
-        La tabla 'receptores' es un directorio global (cada RUT se guarda una sola
-        vez y lo comparten todos, para no duplicar). Pero cada usuario solo debe
-        ver los suyos: los que registro el mismo (usuario_id) y aquellos a los que
-        ya les emitio alguna boleta (boletas.receptor_id). Antes se mostraba el
-        directorio completo y un usuario veia los receptores de otro."""
+        """Receptores DEL USUARIO, con el RUT ya descifrado: los que registro el
+        mismo (usuario_id) y aquellos a los que ya les emitio alguna boleta.
+        Cada usuario tiene su propia lista; la base de datos (RLS) no deja ver
+        los receptores de otros usuarios."""
         try:
             propios = self.client.table("receptores").select("id")\
                 .eq("usuario_id", usuario_id).execute().data or []
@@ -141,13 +134,16 @@ class SupabaseService:
             return []
 
     def crear_receptor(self, rut: str, nombre: str, email: str = "", usuario_id: str | None = None) -> dict | None:
-        """Crea un receptor nuevo, guardando el RUT cifrado (mas su hash para buscarlo).
-        Si ese RUT ya existe en el directorio global (lo registro otro usuario), no
-        lo duplica: devuelve el existente."""
+        """Crea un receptor nuevo a nombre del usuario, guardando el RUT cifrado (mas
+        su hash para buscarlo). Si el usuario ya tiene ese RUT en su lista, no lo
+        duplica: devuelve el existente."""
         try:
             rut_clean = rut.strip()
-            existente = self.client.table("receptores").select("id, nombre, email")\
-                .eq("rut_hash", hash_rut(rut_clean)).execute().data
+            consulta = self.client.table("receptores").select("id, nombre, email")\
+                .eq("rut_hash", hash_rut(rut_clean))
+            if usuario_id:
+                consulta = consulta.eq("usuario_id", usuario_id)
+            existente = consulta.execute().data
             if existente:
                 fila = dict(existente[0])
                 fila["rut"] = rut_clean

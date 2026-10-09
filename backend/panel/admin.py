@@ -120,6 +120,15 @@ class SinCrearNiBorrar(PanelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
+    def save_model(self, request, obj, form, change):
+        # Guarda solo los campos que se cambiaron en el formulario. El usuario
+        # de base de datos del panel (panel_admin) solo tiene permiso de escribir
+        # esas columnas; si Django reescribiera la fila completa, lo rechazaria.
+        if change:
+            obj.save(update_fields=form.changed_data)
+        else:
+            super().save_model(request, obj, form, change)
+
 
 MESES_NOMBRE = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto",
                 "Septiembre", "Octubre", "Noviembre", "Diciembre"]
