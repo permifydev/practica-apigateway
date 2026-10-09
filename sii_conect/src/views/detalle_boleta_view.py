@@ -3,7 +3,7 @@ import flet as ft
 from src.utils.constants import NAVY, RED_TEXT, GREEN, GREY_TEXT, CARD_RADIUS
 from src.services.supabase_service import db_de_sesion
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
-from src.utils.helpers import mapear_estado_boleta, mensaje_error_api, _abrir_url
+from src.utils.helpers import mapear_estado_boleta, mensaje_error_api, _abrir_url, fecha_corta
 from src.utils.acciones_boleta import preparar_pdf, enviar_boleta_por_email
 
 api_client = ApiGatewayClient()
@@ -35,8 +35,7 @@ def build_detalle_boleta(page: ft.Page, state: dict, navigate_to):
         )
 
     folio = boleta.get("folio_sii", "---")
-    codigo_sii = (boleta.get("respuesta_sii") or {}).get("codigo") or str(folio)
-    fecha = boleta.get("fecha_emision", "---")
+    fecha = fecha_corta(boleta.get("fecha_emision"))
     contraparte = boleta.get("contraparte_nombre", "---")
     monto_bruto = boleta.get("monto_bruto", 0)
     monto_liquido = boleta.get("monto_liquido", monto_bruto)

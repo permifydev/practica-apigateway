@@ -2,7 +2,7 @@
 creditos de apigateway.cl.
 
 Crea, para las cuentas de prueba existentes (no crea usuarios):
-  - 3 receptores ficticios: RECEPTOR DEMO 1, 2 y 3 (RUT inventados, cifrados)
+  - 4 receptores ficticios: RECEPTOR DEMO 1 a 4 (RUT inventados, cifrados), uno por boleta
   - emisor@test.com   -> BOLETA DEMO 1 y BOLETA DEMO 2
   - usuario1@test.com -> BOLETA DEMO 3 y BOLETA DEMO 4
   - por cada boleta, un PDF MAQUETA en Storage ({usuario_id}/{boleta_id}.pdf)
@@ -54,13 +54,14 @@ RECEPTORES = {  # clave -> (nombre, RUT inventado, cuenta duena)
     1: ("RECEPTOR DEMO 1", rut_ficticio(70000001), "emisor@test.com"),
     2: ("RECEPTOR DEMO 2", rut_ficticio(70000002), "emisor@test.com"),
     3: ("RECEPTOR DEMO 3", rut_ficticio(70000003), "usuario1@test.com"),
+    4: ("RECEPTOR DEMO 4", rut_ficticio(70000004), "usuario1@test.com"),
 }
 
 BOLETAS = [  # (titulo, cuenta, receptor, folio, bruto, fecha, estado)
     ("BOLETA DEMO 1", "emisor@test.com",   1, "90001", 100000, "2026-10-01", "emitida"),
     ("BOLETA DEMO 2", "emisor@test.com",   2, "90002", 250000, "2026-10-05", "emitida"),
     ("BOLETA DEMO 3", "usuario1@test.com", 3, "90003",  80000, "2026-10-02", "emitida"),
-    ("BOLETA DEMO 4", "usuario1@test.com", 3, "90004", 150000, "2026-10-06", "emitida"),
+    ("BOLETA DEMO 4", "usuario1@test.com", 4, "90004", 150000, "2026-10-06", "emitida"),
 ]
 
 

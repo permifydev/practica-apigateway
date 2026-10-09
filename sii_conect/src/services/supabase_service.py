@@ -1,37 +1,10 @@
 import logging
-from datetime import datetime, date
+from datetime import date
 from supabase import Client
 from src.config import nuevo_cliente_supabase
 from src.utils.crypto_rut import cifrar_rut, descifrar_rut, hash_rut
 
 logger = logging.getLogger(__name__)
-
-def _periodo_a_fecha(periodo) -> str:
-    """'YYYYMM' (o 'YYYYMMDD', o una date) -> 'YYYY-MM-01'. Desde la migracion 005
-    todas las columnas 'periodo' son date (primer dia del mes)."""
-    if isinstance(periodo, date):
-        return periodo.replace(day=1).isoformat()
-    txt = str(periodo).replace("-", "").strip()
-    return f"{txt[0:4]}-{txt[4:6]}-01"
-
-
-def _fecha_a_iso(valor) -> str | None:
-    """Fecha del SII -> 'YYYY-MM-DD' (columna date). Acepta '2026-07-28',
-    '28/07/2026', '28-07-2026' o '28 jul 2026'. None si no se reconoce."""
-    if not valor:
-        return None
-    if isinstance(valor, date):
-        return valor.isoformat()
-    txt = str(valor).strip()
-    for formato in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
-        try:
-            return datetime.strptime(txt[:10], formato).date().isoformat()
-        except ValueError:
-            pass
-    from src.utils.helpers import parse_fecha_bhe
-    f = parse_fecha_bhe(txt)
-    return None if f == date.min else f.isoformat()
-
 
 def db_de_sesion(state: dict) -> "SupabaseService":
     """Devuelve el SupabaseService de la persona dueña de este 'state' (cada
@@ -99,15 +72,6 @@ class SupabaseService:
         except Exception as e:
             logger.error(f"Error al obtener perfil propio: {e}")
             return None
-
-    def validar_usuario(self, identificador: str) -> dict | None:
-        """Valida usuario contra Supabase Auth."""
-        if not self.client:
-            logger.warning("validar_usuario() fue llamado con cliente Supabase sin inicializar.")
-            return None
-
-        logger.warning("validar_usuario() fue llamado con un cliente Supabase real: usa iniciar_sesion().")
-        return None
 
     def actualizar_perfil(self, usuario_id: str, email: str) -> dict | None:
         """Actualiza el correo de contacto del perfil."""
@@ -301,68 +265,6 @@ class SupabaseService:
         except Exception as e:
             logger.error(f"Error al actualizar estado de boleta: {e}")
             return None
-
-    def subir_pdf_boleta(self, usuario_id: str, folio: str, pdf_bytes: bytes) -> str | None:
-        """Sube el PDF de una boleta al bucket privado 'pdf_boletas', dentro de una
-        carpeta por usuario (asi las politicas de RLS pueden restringir cada quien
-        a lo suyo), y devuelve una URL firmada (valida 1 hora) para abrirlo.
-        Si algo falla (bucket sin politicas, sin sesion, etc.) devuelve None y
-        quien llama puede recurrir al guardado local como respaldo."""
-        try:
-            ruta = f"{usuario_id}/{folio}.pdf"
-            self.client.storage.from_("pdf_boletas").upload(
-                path=ruta,
-                file=pdf_bytes,
-                file_options={"content-type": "application/pdf", "upsert": "true"},
-            )
-            firmada = self.client.storage.from_("pdf_boletas").create_signed_url(
-                ruta, 3600, {"download": f"boleta_{folio}.pdf"}
-            )
-            return firmada.get("signedURL") or firmada.get("signedUrl") or firmada.get("signed_url")
-        except Exception as e:
-            logger.error(f"Error al subir PDF a Supabase Storage: {e}")
-            return None
-
-    def _firmar_urls_pdf(self, usuario_id: str, folio: str) -> dict | None:
-        """Devuelve dos URLs firmadas (1 hora) del mismo PDF: 'ver' (se abre en el
-        navegador) y 'descarga' (fuerza la descarga con nombre boleta_<folio>.pdf)."""
-        bucket = self.client.storage.from_("pdf_boletas")
-        ruta = f"{usuario_id}/{folio}.pdf"
-
-        def extraer(r):
-            return r.get("signedURL") or r.get("signedUrl") or r.get("signed_url")
-
-        ver = extraer(bucket.create_signed_url(ruta, 3600))
-        descarga = extraer(bucket.create_signed_url(ruta, 3600, {"download": f"boleta_{folio}.pdf"}))
-        return {"ver": ver, "descarga": descarga} if (ver and descarga) else None
-
-    def subir_pdf_boleta_urls(self, usuario_id: str, folio: str, pdf_bytes: bytes) -> dict | None:
-        """Igual que subir_pdf_boleta, pero devuelve {'ver': url, 'descarga': url}."""
-        try:
-            self.client.storage.from_("pdf_boletas").upload(
-                path=f"{usuario_id}/{folio}.pdf",
-                file=pdf_bytes,
-                file_options={"content-type": "application/pdf", "upsert": "true"},
-            )
-            return self._firmar_urls_pdf(usuario_id, folio)
-        except Exception as e:
-            logger.error(f"Error al subir PDF a Supabase Storage: {e}")
-            return None
-
-    def urls_pdf_boleta(self, usuario_id: str, folio: str) -> dict | None:
-        """Si el PDF de este folio YA esta guardado en Supabase, devuelve sus URLs
-        firmadas sin volver a llamar al SII (ahorra creditos). Si no existe, None."""
-        try:
-            archivos = self.client.storage.from_("pdf_boletas").list(
-                usuario_id, {"search": f"{folio}.pdf"}
-            )
-            if not any(a.get("name") == f"{folio}.pdf" for a in (archivos or [])):
-                return None
-            return self._firmar_urls_pdf(usuario_id, folio)
-        except Exception as e:
-            logger.warning(f"No se pudo consultar el PDF en Supabase Storage: {e}")
-            return None
-
 
     BUCKET_PDF = "pdf_boletas"
 

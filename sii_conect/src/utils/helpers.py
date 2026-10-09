@@ -1,8 +1,6 @@
 import re
-import base64
 import inspect
 import datetime
-import uuid
 from pathlib import Path
 
 # sii_conect/src/utils/helpers.py -> sii_conect/assets/pdfs
@@ -144,42 +142,6 @@ async def _abrir_url(page, url: str):
         await resultado
 
 
-async def abrir_pdf_resultado(page, resultado: dict, db_service=None, usuario_id=None, folio=None) -> dict:
-    """Prepara el PDF devuelto por descargar_pdf/descargar_pdf_recibida (que puede
-    venir como bytes binarios o, en modo mock, como una URL) y devuelve
-    {"mensaje": str, "url": str|None}.
-
-    Si se pasan db_service/usuario_id/folio, primero intenta guardar el PDF de
-    forma PERMANENTE en el bucket de Supabase Storage 'pdf_boletas'. Si eso no
-    esta disponible (o falla), usa como respaldo el disco local del servidor
-    (assets/pdfs) -- que solo dura mientras el servidor no se reinicie.
-
-    OJO: ya no abre la pestaña automaticamente (page.launch_url) porque, al haber
-    una espera de red de por medio (la subida a Supabase), el navegador deja de
-    considerarlo un 'gesto directo del usuario' y bloquea el pop-up en silencio
-    (sin error, simplemente no pasa nada). Por eso quien llama debe mostrar la
-    URL devuelta como un link real que el usuario apriete el mismo."""
-    pdf_bytes = resultado.get("pdf_bytes")
-    data = resultado.get("data") or {}
-
-    if pdf_bytes:
-        if db_service and usuario_id and folio:
-            url_firmada = db_service.subir_pdf_boleta(usuario_id, folio, pdf_bytes)
-            if url_firmada:
-                return {"mensaje": "PDF listo (guardado permanente en Supabase). Aprieta el botón para descargarlo.", "url": url_firmada}
-
-        CARPETA_ASSETS_PDF.mkdir(parents=True, exist_ok=True)
-        nombre_archivo = f"boleta_{uuid.uuid4().hex[:12]}.pdf"
-        (CARPETA_ASSETS_PDF / nombre_archivo).write_bytes(pdf_bytes)
-        return {"mensaje": "PDF listo. Aprieta el botón para descargarlo.", "url": f"/pdfs/{nombre_archivo}"}
-
-    pdf_url = data.get("pdf_url")
-    if pdf_url:
-        return {"mensaje": "PDF listo. Aprieta el botón para descargarlo.", "url": pdf_url}
-
-    return {"mensaje": "El SII no devolvió un PDF para este documento.", "url": None}
-
-
 def mapear_estado_boleta(estado_api):
     """Traduce el estado que devuelve la API Gateway al enum estado_boleta de Supabase."""
     if not estado_api:
@@ -194,3 +156,10 @@ def mapear_estado_boleta(estado_api):
     return mapa.get(estado_normalizado, "pendiente")
 
 
+def fecha_corta(valor) -> str:
+    """'2026-10-06T00:00:00+00:00' (o '2026-10-06') -> '06-10-2026'. Si no se
+    reconoce el formato, devuelve el valor tal cual (o '---' si viene vacio)."""
+    txt = str(valor or "").strip()
+    if len(txt) >= 10 and txt[4] == "-" and txt[7] == "-":
+        return f"{txt[8:10]}-{txt[5:7]}-{txt[0:4]}"
+    return txt or "---"

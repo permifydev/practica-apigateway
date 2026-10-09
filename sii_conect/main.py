@@ -1,5 +1,4 @@
 import flet as ft
-import os
 import logging
 import threading
 from pathlib import Path
@@ -16,7 +15,6 @@ from src.views.emitir_view import build_emitir
 from src.views.mis_boletas_view import build_mis_boletas
 from src.views.certificados_view import build_certificados
 from src.views.detalle_boleta_view import build_detalle_boleta
-from src.views.boletas_recibidas_view import build_boletas_recibidas
 from src.views.verificar_autenticidad_view import build_verificar_autenticidad
 from src.views.receptores_view import build_receptores
 from src.views.perfil_view import build_perfil
@@ -60,7 +58,6 @@ def main(page: ft.Page):
         "Mis BHE": build_mis_boletas,
         "Certificados": build_certificados,
         "Detalle Boleta": build_detalle_boleta,
-        "Boletas Recibidas": build_boletas_recibidas,
         "Verificar Autenticidad": build_verificar_autenticidad,
         "Receptores": build_receptores,
         "Perfil": build_perfil,

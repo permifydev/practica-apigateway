@@ -19,8 +19,6 @@ def stat_card(label, value, value_color, sub, sub_color=GREY_TEXT):
     )
 
 def quick_action(text, filled=False, on_click=None):
-    style_bg = NAVY if filled else None
-    style_color = "white" if filled else NAVY
     
     if filled:
         return ft.ElevatedButton(

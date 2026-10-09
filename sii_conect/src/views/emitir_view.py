@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 import flet as ft
-from src.utils.constants import NAVY, RED_TEXT, GREEN, CARD_RADIUS, GREY_TEXT, tasa_retencion_vigente
+from src.utils.constants import NAVY, RED_TEXT, CARD_RADIUS, GREY_TEXT, tasa_retencion_vigente
 from src.services.supabase_service import db_de_sesion
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
 from src.utils.helpers import mapear_estado_boleta, mensaje_error_api, validar_rut, activar_formato_rut_en_vivo

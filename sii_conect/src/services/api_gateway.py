@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime
 import requests
 from src.config import APIGATEWAY_BASE_URL, APIGATEWAY_TOKEN, PROXY_URL
 

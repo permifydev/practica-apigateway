@@ -4,7 +4,7 @@ import flet as ft
 from src.utils.constants import NAVY, BLUE, GREEN, RED_TEXT, GREY_TEXT, CARD_RADIUS
 from src.services.supabase_service import db_de_sesion
 from src.services.api_gateway import ApiGatewayClient, ApiGatewayError
-from src.utils.helpers import mensaje_error_api, _abrir_url
+from src.utils.helpers import mensaje_error_api, _abrir_url, fecha_corta
 from src.utils.acciones_boleta import preparar_pdf, enviar_boleta_por_email, recordar_codigos
 
 api_client = ApiGatewayClient()
@@ -51,7 +51,7 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
                 ft.DataRow(
                     cells=[
                         ft.DataCell(ft.Text(f"#{b.get('folio_sii', '---')}")),
-                        ft.DataCell(ft.Text(str(b.get("fecha_emision", "---")))),
+                        ft.DataCell(ft.Text(fecha_corta(b.get("fecha_emision")))),
                         ft.DataCell(ft.Text(b.get("rut_emisor") or "---")),
                         ft.DataCell(ft.Text(b.get("contraparte_nombre", "---"))),
                         ft.DataCell(ft.Text(monto)),

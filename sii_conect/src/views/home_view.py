@@ -1,5 +1,5 @@
 import flet as ft
-from src.utils.constants import NAVY, BLUE, GREEN, ORANGE, PURPLE, GREY_TEXT, CARD_RADIUS, MENU_ACTIVE_BG, MENU_HOVER_BG, RED_TEXT
+from src.utils.constants import NAVY, BLUE, GREEN, ORANGE, GREY_TEXT, CARD_RADIUS, MENU_ACTIVE_BG, MENU_HOVER_BG, RED_TEXT
 from src.components.ui import stat_card, quick_action, pending_row
 from src.services.supabase_service import db_de_sesion
 
@@ -8,7 +8,7 @@ from src.services.supabase_service import db_de_sesion
 
 PANTALLAS_DISPONIBLES = [
     "Inicio", "Emitir BHE", "Mis BHE", "Certificados",
-    "Receptores", "Perfil", "Boletas Recibidas", "Verificar Autenticidad",
+    "Receptores", "Perfil", "Verificar Autenticidad",
     "Resumen ventas y comisiones", "Notificaciones",
 ]
 
@@ -122,7 +122,6 @@ def build_home(page: ft.Page, state: dict, navigate_to):
     elif rol_usuario == "cliente":
         menu_controls.extend([
             menu_item(ft.Icons.INBOX_OUTLINED, "Mis BHE"),
-            menu_item(ft.Icons.FACT_CHECK_OUTLINED, "Boletas Recibidas"),
             menu_section_label("HERRAMIENTAS"),
             menu_item(ft.Icons.VERIFIED_OUTLINED, "Verificar Autenticidad"),
         ])
@@ -273,7 +272,6 @@ alignment=ft.alignment.Alignment(0, 0),
         subtitulo_rol = "Portal de consulta de boletas recibidas."
         quick_actions_list = [
             quick_action("Ver boletas de honorarios recibidas", on_click=lambda e: navigate_to("Mis BHE")),
-            quick_action("Consultar boletas recibidas en el SII", on_click=lambda e: navigate_to("Boletas Recibidas")),
         ]
 
     body = ft.Container(
