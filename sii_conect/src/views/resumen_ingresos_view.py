@@ -101,7 +101,7 @@ def build_resumen_ingresos(page: ft.Page, state: dict, navigate_to):
         rows=[],
     )
 
-    # ---------- Confirmacion antes de enviar ----------
+    # Confirmacion antes de enviar
     pendiente = {"fila": None}
     texto_confirmacion = _txt("")
 
@@ -162,7 +162,7 @@ def build_resumen_ingresos(page: ft.Page, state: dict, navigate_to):
             page.update()
         return handler
 
-    # ---------- Tabla ----------
+    # Tabla
     def celda_solicitud(d):
         if d.get("estado_solicitud"):
             fecha = str(d.get("solicitud_fecha") or "")[:10]
@@ -212,7 +212,7 @@ def build_resumen_ingresos(page: ft.Page, state: dict, navigate_to):
 
     sin_datos = _txt("No hay ventas registradas para este mes.", visible=False)
 
-    # ---------- Selector de mes ----------
+    # Selector de mes
     def mover_mes(delta):
         def handler(e):
             m = periodo_sel["mes"] + delta

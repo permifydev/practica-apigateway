@@ -1,15 +1,9 @@
 import re
 import inspect
-import datetime
 from pathlib import Path
 
 # sii_conect/src/utils/helpers.py -> sii_conect/assets/pdfs
 CARPETA_ASSETS_PDF = Path(__file__).resolve().parent.parent.parent / "assets" / "pdfs"
-
-MESES_ES = {
-    "ene": 1, "feb": 2, "mar": 3, "abr": 4, "may": 5, "jun": 6,
-    "jul": 7, "ago": 8, "sep": 9, "oct": 10, "nov": 11, "dic": 12,
-}
 
 def validar_rut(rut: str) -> bool:
     """Valida formato y digito verificador de un RUT chileno (ej. 12.345.678-9 o 12345678-9)."""
@@ -31,11 +25,6 @@ def validar_rut(rut: str) -> bool:
     resto = 11 - (suma % 11)
     dv_esperado = {11: "0", 10: "K"}.get(resto, str(resto))
     return dv == dv_esperado
-
-
-def formato_rut(rut: str) -> str:
-    """Normaliza un RUT a formato sin puntos, con guion (ej. 12345678-9), para mostrar errores consistentes."""
-    return re.sub(r"[.\s]", "", rut).upper() if rut else ""
 
 
 def formato_rut_puntos(rut_crudo: str) -> str:
@@ -80,27 +69,11 @@ def activar_formato_rut_en_vivo(campo) -> None:
     campo.on_change = on_change
 
 
-def parse_monto(texto):
-    """Convierte cualquier entrada a entero descartando caracteres no numéricos."""
-    if not texto:
-        return None
-    solo_digitos = re.sub(r"[^\d]", "", str(texto))
-    return int(solo_digitos) if solo_digitos else None
-
 def formato_clp(monto):
     """Formatea entero como moneda chilena ($1.234.567)."""
     if monto is None:
         return "$0"
     return f"${monto:,.0f}".replace(",", ".")
-
-def parse_fecha_bhe(texto):
-    """Convierte texto tipo '28 jul 2026' a un objeto date real."""
-    try:
-        dia, mes_txt, anio = texto.strip().split()
-        mes = MESES_ES[mes_txt.lower()[:3]]
-        return datetime.date(int(anio), mes, int(dia))
-    except Exception:
-        return datetime.date.min
 
 def mensaje_error_api(api_err) -> str:
     """Traduce un ApiGatewayError a un mensaje en español para el usuario final,

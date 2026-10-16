@@ -27,7 +27,7 @@ def build_home(page: ft.Page, state: dict, navigate_to):
     if rol_usuario == "emisor" and usuario_info.get("id"):
         no_leidas = db_service.contar_notificaciones_no_leidas(usuario_info["id"])
 
-    # Resumen REAL del emisor (antes eran numeros de ejemplo fijos): sus boletas
+    # Resumen del emisor: sus boletas
     # del mes actual que no esten anuladas, y sus ultimas 3 boletas. Solo lee
     # Supabase: no llama al SII ni gasta creditos.
     boletas_usuario = []

@@ -19,19 +19,19 @@ RAIZ = Path(__file__).resolve().parent
 sys.path.insert(0, str(RAIZ / "backend"))      # paquete 'config' y apps de Django
 sys.path.insert(0, str(RAIZ / "sii_conect"))   # paquete 'src' y main.py de Flet
 
-# ----------------------------------------------------------------- Django
+# Django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 from django.core.asgi import get_asgi_application  # noqa: E402
 
 django_app = get_asgi_application()
 
-# ----------------------------------------------------------------- Flet
+# Flet
 import flet.fastapi as flet_fastapi  # noqa: E402
 from main import main as flet_main  # noqa: E402  (sii_conect/main.py)
 
 flet_app = flet_fastapi.app(flet_main, assets_dir=str(RAIZ / "sii_conect" / "assets"))
 
-# ----------------------------------------------------------------- reparto
+# Reparto
 RUTAS_DJANGO = ("/admin", "/admin-static/", "/correos/")
 
 

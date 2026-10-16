@@ -96,7 +96,7 @@ class ApiGatewayClient:
         if restantes_minuto is not None:
             logger.info(f"Peticiones restantes este minuto: {restantes_minuto}")
 
-    # ---------------- BHE Emitidas ----------------
+    # BHE emitidas
 
     def _normalizar_respuesta_emision(self, data: dict) -> dict:
         """La API real devuelve la boleta en el formato oficial del SII, anidado en
@@ -282,7 +282,7 @@ class ApiGatewayClient:
         except requests.RequestException as e:
             raise ApiGatewayError(f"Error de conexión con apigateway.cl: {str(e)}")
 
-    # ---------------- BHE Recibidas ----------------
+    # BHE recibidas
 
     def listar_recibidas(self, rut: str, clave: str, receptor: str, periodo: str, pagina: int = 1) -> dict:
         """Lista boletas recibidas por el RUT receptor en un periodo (YYYYMM o YYYYMMDD).
@@ -338,7 +338,7 @@ class ApiGatewayClient:
         except requests.RequestException as e:
             raise ApiGatewayError(f"Error de conexión con apigateway.cl: {str(e)}")
 
-    # ---------------- Autenticidad de terceros ----------------
+    # Autenticidad de terceros
 
     def verificar_autenticidad(self, rut: str, clave: str, codigo_barras: str | None = None,
                                 emisor: str | None = None, receptor: str | None = None,

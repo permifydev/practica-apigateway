@@ -174,7 +174,7 @@ class MesPeriodoFiltro(MesFiltro):
     solo_fecha = True
 
 
-# ------------------------------------------------------------------ usuarios
+# Usuarios
 class BoletaDelUsuarioInline(admin.TabularInline):
     """La "carpeta" del usuario: sus boletas emitidas, solo lectura."""
     model = Boleta
@@ -310,7 +310,7 @@ class ReceptorAdmin(SinCrearNiBorrar):
         return rut_legible(obj.rut_cifrado)
 
 
-# ------------------------------------------------------- ventas y comisiones
+# Ventas y comisiones
 class VentaForm(forms.ModelForm):
     class Meta:
         model = Venta
@@ -451,7 +451,7 @@ class CorreoPendienteAdmin(SoloLectura):
             self.message_user(request, f"No se pudo enviar: {e}", level=messages.ERROR)
 
 
-# ------------------------------------------------------- boletas (solo ver)
+# Boletas (solo ver)
 class ConPdfFiltro(admin.SimpleListFilter):
     title = "PDF guardado"
     parameter_name = "con_pdf"
@@ -604,7 +604,7 @@ class BoletaRecibidaAdmin(SoloLectura):
     def monto(self, obj):
         return clp(obj.monto_bruto)
 
-# ------------------------------------------------- etiquetas en español
+# Etiquetas en español
 # Nombres de columnas y campos que ve el jefe en el panel (la base de datos no
 # cambia: solo el texto que muestra Django). Con ayuda donde se presta a dudas.
 ETIQUETAS = {
@@ -646,7 +646,7 @@ for _modelo, _campos in AYUDAS.items():
         _modelo._meta.get_field(_campo).help_text = _texto
 
 
-# ------------------------------------------------- orden del menu del panel
+# Orden del menu del panel
 # Django ordena las tablas alfabeticamente. Aca se ordenan como se usan, y las
 # tablas tecnicas quedan aparte al final, en "Registros tecnicos".
 ORDEN_MENU = ["Perfil", "Boleta", "HistorialBHE", "Receptor", "Empresa", "Venta", "SolicitudBHE",

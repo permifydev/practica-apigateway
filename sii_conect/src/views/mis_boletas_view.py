@@ -78,7 +78,7 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
         rows=[],  # se llena al final con construir_filas(boletas), cuando ya existen los botones
     )
 
-    # --- Acciones por fila: Enviar / Descargar / Ver PDF ---
+    # Acciones por fila: Enviar / Descargar / Ver PDF
     msg_acciones = ft.Text("", size=12)
 
     def clave_para_acciones():
@@ -253,7 +253,7 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
             ],
         )
 
-    # --- Reconciliar con el SII (mes actual) ---
+    # Reconciliar con el SII (mes actual)
     # El RUT ya no se escribe a mano: siempre es el del usuario logueado (tabla
     # 'perfiles'). Cada cuenta de prueba debe tener su propio RUT asociado; si
     # se necesita reconciliar con otro RUT, se inicia sesion con esa cuenta.
@@ -268,7 +268,7 @@ def build_mis_boletas(page: ft.Page, state: dict, navigate_to):
     )
     msg_reconciliar = ft.Text("", size=12)
 
-    # --- Selector de mes a reconciliar (igual que en Resumen de Ingresos) ---
+    # Selector de mes a reconciliar (igual que en Resumen de Ingresos)
     hoy = date.today()
     periodo_sel = {"anio": hoy.year, "mes": hoy.month}
     label_periodo = ft.Text(f"{MESES_NOMBRE[periodo_sel['mes']]} {periodo_sel['anio']}", size=13, weight=ft.FontWeight.BOLD, color=NAVY)

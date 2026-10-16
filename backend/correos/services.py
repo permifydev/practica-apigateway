@@ -40,7 +40,7 @@ def cliente_supabase():
     return _cliente
 
 
-# ---------------------------------------------------------------- formato
+# Formato
 def descifrar_rut(rut_cifrado):
     if not rut_cifrado or not settings.RUT_ENCRYPTION_KEY:
         return None
@@ -77,7 +77,7 @@ def mes_texto(periodo):
         return str(periodo)
 
 
-# ---------------------------------------------------------------- datos
+# Datos
 def _uno(tabla, columnas, **filtros):
     q = cliente_supabase().table(tabla).select(columnas)
     for campo, valor in filtros.items():
@@ -112,7 +112,7 @@ def datos_del_correo(fila):
     }
 
 
-# ---------------------------------------------------------------- envio
+# Envio
 def enviar_un_correo(fila):
     datos = datos_del_correo(fila)
     texto = render_to_string("correos/solicitud_bhe.txt", datos)

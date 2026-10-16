@@ -342,13 +342,9 @@ class SupabaseService:
             logger.error(f"Error al registrar evento de historial: {e}")
             return None
 
-    # ------------------------------------------------------------------
-    # Solicitudes de BHE (migracion 007): la EMPRESA le pide al USUARIO
-    # (emisor) que emita una BHE por lo que le corresponde de sus ventas.
-    # Los montos los calcula la BD (trigger calcular_solicitud_bhe) y la
-    # notificacion + el correo en cola los crea otro trigger
-    # (avisar_solicitud_bhe). Aca solo se indica empresa, usuario y mes.
-    # ------------------------------------------------------------------
+    # Solicitudes de BHE: la empresa le pide al usuario que emita una BHE por sus
+    # ventas. Los montos, la notificacion y el correo los arman triggers en la BD;
+    # aca solo se indica empresa, usuario y mes.
     def enviar_solicitud_bhe(self, empresa_id: str, emisor_id: str, anio: int, mes: int) -> tuple[bool, str]:
         """Crea la solicitud. Devuelve (ok, mensaje para mostrar)."""
         try:
@@ -367,9 +363,7 @@ class SupabaseService:
                 return False, "El usuario no tiene ventas registradas en este mes."
             return False, "No se pudo enviar la solicitud. Intenta nuevamente."
 
-    # ------------------------------------------------------------------
-    # Notificaciones en la app (migracion 007)
-    # ------------------------------------------------------------------
+    # Notificaciones en la app
     def contar_notificaciones_no_leidas(self, usuario_id: str) -> int:
         try:
             res = self.client.table("notificaciones")\
